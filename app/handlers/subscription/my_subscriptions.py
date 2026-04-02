@@ -92,14 +92,14 @@ def _build_subscriptions_keyboard(subscriptions: list, language: str) -> types.I
             ]
         )
 
-    # "Buy another tariff" button
-    texts = get_texts(language)
-    buy_text = getattr(texts, 'MENU_BUY_SUBSCRIPTION', 'Купить ещё тариф')
-    buttons.append(
-        [
-            types.InlineKeyboardButton(text=f'➕ {buy_text}', callback_data='menu_buy'),
-        ]
-    )
+    # "Buy another tariff" button — temporarily disabled
+    # texts = get_texts(language)
+    # buy_text = getattr(texts, 'MENU_BUY_SUBSCRIPTION', 'Купить ещё тариф')
+    # buttons.append(
+    #     [
+    #         types.InlineKeyboardButton(text=f'➕ {buy_text}', callback_data='menu_buy'),
+    #     ]
+    # )
     # Back button
     buttons.append(
         [
@@ -154,7 +154,7 @@ async def show_my_subscriptions(
         text = '📋 <b>Мои подписки</b>\n\nУ вас нет подписок.'
         keyboard = types.InlineKeyboardMarkup(
             inline_keyboard=[
-                [types.InlineKeyboardButton(text='🛒 Купить подписку', callback_data='menu_buy')],
+                # [types.InlineKeyboardButton(text='🛒 Купить подписку', callback_data='menu_buy')],  # temporarily disabled
                 [types.InlineKeyboardButton(text='◀️ Назад', callback_data='back_to_menu')],
             ]
         )

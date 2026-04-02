@@ -187,7 +187,7 @@ DEFAULT_MENU_CONFIG: dict[str, Any] = {
             'builtin_id': 'promocode',
             'text': {'ru': '🎟️ Промокод', 'en': '🎟️ Promo code'},
             'action': 'menu_promocode',
-            'enabled': True,
+            'enabled': False,
             'visibility': 'all',
             'conditions': None,
             'dynamic_text': False,

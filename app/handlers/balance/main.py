@@ -166,6 +166,22 @@ async def show_balance_menu(callback: types.CallbackQuery, db_user: User, db: As
         await callback.answer()
         return
 
+    # Показываем кнопку загрузки, пока готовим данные
+    loading_markup = types.InlineKeyboardMarkup(
+        inline_keyboard=[[types.InlineKeyboardButton(text='⏳ Загрузка...', callback_data='noop')]]
+    )
+    try:
+        if callback.message and callback.message.text:
+            await callback.message.edit_text("ЛК, будет доступен позже", reply_markup=reply_markup)
+            await callback.answer()
+            return
+        elif callback.message and callback.message.caption:
+            await callback.message.edit_text("ЛК, будет доступен позже", reply_markup=reply_markup)
+            await callback.answer()
+            return
+    except TelegramBadRequest:
+        pass
+
     texts = get_texts(db_user.language)
 
     balance_text = texts.BALANCE_INFO.format(balance=texts.format_price(db_user.balance_kopeks))

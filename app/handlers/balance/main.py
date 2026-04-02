@@ -172,11 +172,11 @@ async def show_balance_menu(callback: types.CallbackQuery, db_user: User, db: As
     )
     try:
         if callback.message and callback.message.text:
-            await callback.message.edit_text("ЛК, будет доступен позже", reply_markup=reply_markup)
+            await callback.message.edit_text("ЛК, будет доступен позже", reply_markup=loading_markup)
             await callback.answer()
             return
         elif callback.message and callback.message.caption:
-            await callback.message.edit_text("ЛК, будет доступен позже", reply_markup=reply_markup)
+            await callback.message.edit_text("ЛК, будет доступен позже", reply_markup=loading_markup)
             await callback.answer()
             return
     except TelegramBadRequest:

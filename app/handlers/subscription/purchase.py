@@ -574,11 +574,11 @@ async def show_subscription_info(callback: types.CallbackQuery, db_user: User, d
 
         message += '\n\n' + texts.t(
             'SUBSCRIPTION_CONNECT_LINK_SECTION',
-            '🔗 <b>Ссылка для подключения:</b>\n{subscription_url}',
+            '🔗 <b>Скопируйте ссылку, вставьте в браузер и следуйте инструкции:</b>\n{subscription_url}',
         ).format(subscription_url=subscription_link_display)
         message += '\n\n' + texts.t(
             'SUBSCRIPTION_CONNECT_LINK_PROMPT',
-            '📱 Скопируйте ссылку и добавьте в ваше VPN приложение\n\nВ мини-приложении есть инструкция. Внизу страницы можно поменять язык.',
+            '📱 Обратите внимание, по ссылке доступны два варианта приложения.',
         )
 
     await callback.message.edit_text(

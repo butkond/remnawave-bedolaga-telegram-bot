@@ -703,8 +703,9 @@ def get_main_menu_keyboard(
     if show_trial:
         subscription_buttons.append(InlineKeyboardButton(text=texts.MENU_TRIAL, callback_data='menu_trial'))
 
-    if show_buy:
-        subscription_buttons.append(InlineKeyboardButton(text=texts.MENU_BUY_SUBSCRIPTION, callback_data='menu_buy'))
+    # temporarily disabled: "Купить подписку" button
+    # if show_buy:
+    #     subscription_buttons.append(InlineKeyboardButton(text=texts.MENU_BUY_SUBSCRIPTION, callback_data='menu_buy'))
 
     if subscription_buttons:
         paired_buttons.extend(subscription_buttons)

@@ -157,7 +157,7 @@ DEFAULT_MENU_CONFIG: dict[str, Any] = {
             'builtin_id': 'buy_subscription',
             'text': {'ru': '🛒 Купить подписку', 'en': '🛒 Buy subscription'},
             'action': 'menu_buy',
-            'enabled': True,
+            'enabled': False,
             'visibility': 'all',
             'conditions': {'show_buy': True},
             'dynamic_text': False,

@@ -107,11 +107,11 @@ async def handle_connect_subscription(
         await callback.message.edit_text(
             texts.t(
                 'SUBSCRIPTION_CONNECT_MINIAPP_MESSAGE',
-                """📱 <b>Подключить подписку</b>
+                """📱 <b>Подключить VPN</b>
 
-🚀 Нажмите кнопку ниже, чтобы открыть подписку в мини-приложении Telegram:
+Нажмите кнопку ниже, чтобы подключить VPN:
 
-В мини-приложении есть инструкция. Внизу страницы можно поменять язык.""",
+Вставьте полученную ссылку в браузер и следуйте инструкции.""",
             ),
             reply_markup=keyboard,
             parse_mode='HTML',
@@ -143,11 +143,11 @@ async def handle_connect_subscription(
         await callback.message.edit_text(
             texts.t(
                 'SUBSCRIPTION_CONNECT_CUSTOM_MESSAGE',
-                """🚀 <b>Подключить подписку</b>
+                """📱 <b>Подключить VPN</b>
 
-📱 Нажмите кнопку ниже, чтобы открыть приложение:
+Нажмите кнопку ниже, чтобы подключить VPN:
 
-В мини-приложении есть инструкция. Внизу страницы можно поменять язык.""",
+Вставьте полученную ссылку в браузер и следуйте инструкции.""",
             ),
             reply_markup=keyboard,
             parse_mode='HTML',
@@ -165,11 +165,11 @@ async def handle_connect_subscription(
         await callback.message.edit_text(
             texts.t(
                 'SUBSCRIPTION_CONNECT_LINK_MESSAGE',
-                """🚀 <b>Подключить подписку</b>
+                """📱 <b>Подключить VPN</b>
 
-🔗 Нажмите кнопку ниже, чтобы открыть ссылку подписки:
+Нажмите кнопку ниже, чтобы подключить VPN:
 
-В мини-приложении есть инструкция. Внизу страницы можно поменять язык.""",
+Вставьте полученную ссылку в браузер и следуйте инструкции.""",
             ),
             reply_markup=keyboard,
             parse_mode='HTML',
@@ -195,11 +195,11 @@ async def handle_connect_subscription(
         await callback.message.edit_text(
             texts.t(
                 'SUBSCRIPTION_CONNECT_LINK_MESSAGE',
-                """🚀 <b>Подключить подписку</b>
+                """📱 <b>Подключить VPN</b>
 
-🔗 Нажмите кнопку ниже, чтобы открыть ссылку подписки:
+Нажмите кнопку ниже, чтобы подключить VPN:
 
-В мини-приложении есть инструкция. Внизу страницы можно поменять язык.""",
+Вставьте полученную ссылку в браузер и следуйте инструкции.""",
             ),
             reply_markup=keyboard,
             parse_mode='HTML',

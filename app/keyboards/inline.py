@@ -609,7 +609,7 @@ def get_main_menu_keyboard(
                 keyboard.append(
                     [
                         InlineKeyboardButton(
-                            text=texts.t('CONNECT_BUTTON', '🔗 Подключиться'),
+                            text=texts.t('CONNECT_MINIAPP_BUTTON', '🔗 Открыть мини приложение'),
                             web_app=types.WebAppInfo(url=subscription_link),
                         )
                     ]
@@ -620,7 +620,7 @@ def get_main_menu_keyboard(
             keyboard.append(
                 [
                     InlineKeyboardButton(
-                        text=texts.t('CONNECT_BUTTON', '🔗 Подключиться'),
+                        text=texts.t('CONNECT_MINIAPP_BUTTON', '🔗 Открыть мини приложение'),
                         web_app=types.WebAppInfo(url=settings.MINIAPP_CUSTOM_URL),
                     )
                 ]
@@ -1087,7 +1087,7 @@ def get_subscription_keyboard(
                 keyboard.append(
                     [
                         InlineKeyboardButton(
-                            text=texts.t('CONNECT_BUTTON', '🔗 Подключиться'),
+                            text=texts.t('CONNECT_MINIAPP_BUTTON', '🔗 Открыть мини приложение'),
                             web_app=types.WebAppInfo(url=subscription_link),
                         )
                     ]
@@ -1097,7 +1097,7 @@ def get_subscription_keyboard(
                     keyboard.append(
                         [
                             InlineKeyboardButton(
-                                text=texts.t('CONNECT_BUTTON', '🔗 Подключиться'),
+                                text=texts.t('CONNECT_MINIAPP_BUTTON', '🔗 Открыть мини приложение'),
                                 web_app=types.WebAppInfo(url=settings.MINIAPP_CUSTOM_URL),
                             )
                         ]
@@ -1137,7 +1137,7 @@ def get_subscription_keyboard(
             keyboard.append(
                 [
                     InlineKeyboardButton(
-                        text=texts.t('CONNECT_BUTTON', '🔗 Подключиться'),
+                        text=texts.t('CONNECT_MINIAPP_BUTTON', '🔗 Открыть мини приложение'),
                         web_app=types.WebAppInfo(url=settings.MINIAPP_CUSTOM_URL),
                     )
                 ]

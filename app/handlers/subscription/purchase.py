@@ -1160,7 +1160,7 @@ async def activate_trial(callback: types.CallbackQuery, db_user: User, db: Async
                     inline_keyboard=[
                         [
                             InlineKeyboardButton(
-                                text=texts.t('CONNECT_BUTTON', '🔗 Подключиться'),
+                                text=texts.t('CONNECT_MINIAPP_BUTTON', '🔗 Открыть мини приложение'),
                                 web_app=types.WebAppInfo(url=subscription_link),
                             )
                         ],
@@ -1187,7 +1187,7 @@ async def activate_trial(callback: types.CallbackQuery, db_user: User, db: Async
                     inline_keyboard=[
                         [
                             InlineKeyboardButton(
-                                text=texts.t('CONNECT_BUTTON', '🔗 Подключиться'),
+                                text=texts.t('CONNECT_MINIAPP_BUTTON', '🔗 Открыть мини приложение'),
                                 web_app=types.WebAppInfo(url=settings.MINIAPP_CUSTOM_URL),
                             )
                         ],
@@ -2668,7 +2668,7 @@ async def confirm_purchase(callback: types.CallbackQuery, state: FSMContext, db_
                     inline_keyboard=[
                         [
                             InlineKeyboardButton(
-                                text=texts.t('CONNECT_BUTTON', '🔗 Подключиться'),
+                                text=texts.t('CONNECT_MINIAPP_BUTTON', '🔗 Открыть мини приложение'),
                                 web_app=types.WebAppInfo(url=subscription_link),
                             )
                         ],
@@ -2695,7 +2695,7 @@ async def confirm_purchase(callback: types.CallbackQuery, state: FSMContext, db_
                     inline_keyboard=[
                         [
                             InlineKeyboardButton(
-                                text=texts.t('CONNECT_BUTTON', '🔗 Подключиться'),
+                                text=texts.t('CONNECT_MINIAPP_BUTTON', '🔗 Открыть мини приложение'),
                                 web_app=types.WebAppInfo(url=settings.MINIAPP_CUSTOM_URL),
                             )
                         ],
@@ -3468,7 +3468,7 @@ def _build_trial_success_keyboard(texts, subscription_link: str, connect_mode: s
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
-                        text=texts.t('CONNECT_BUTTON', '🔗 Подключиться'),
+                        text=texts.t('CONNECT_MINIAPP_BUTTON', '🔗 Открыть мини приложение'),
                         web_app=types.WebAppInfo(url=subscription_link),
                     )
                 ],
@@ -3488,7 +3488,7 @@ def _build_trial_success_keyboard(texts, subscription_link: str, connect_mode: s
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
-                        text=texts.t('CONNECT_BUTTON', '🔗 Подключиться'),
+                        text=texts.t('CONNECT_MINIAPP_BUTTON', '🔗 Открыть мини приложение'),
                         web_app=types.WebAppInfo(url=settings.MINIAPP_CUSTOM_URL),
                     )
                 ],

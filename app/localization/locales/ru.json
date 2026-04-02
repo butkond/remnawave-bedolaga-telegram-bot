@@ -1486,7 +1486,7 @@
   "SUBSCRIPTION_NOT_FOUND": "❌ Подписка не найдена",
   "SUBSCRIPTION_NO_ACTIVE_LINK": "⚠ У вас нет активной подписки или ссылка еще генерируется",
   "SUBSCRIPTION_NO_SERVERS": "Нет серверов",
-  "SUBSCRIPTION_OVERVIEW_TEMPLATE": "👤 {full_name}\n💰 Баланс: {balance}\n📱 Подписка: {status_emoji} {status_display}{warning}{tariff_info_block}\n\n📱 Информация о подписке\n🎭 Тип: {subscription_type}\n📅 Действует до: {end_date}\n⏰ Осталось: {time_left}\n📈 Трафик: {traffic}\n🌍 Серверы: {servers}\n📱 Устройства: {devices_used} / {device_limit}",
+  "SUBSCRIPTION_OVERVIEW_TEMPLATE": "👤 {full_name}\n💰 Баланс: {balance}\n📱 Подписка: {status_emoji} {status_display}{warning}{tariff_info_block}\n\n📱 Информация о подписке\n🎭 Тип: {subscription_type}\n📅 Действует до: {end_date}\n⏰ Осталось: {time_left}\n📈 Трафик в день: {traffic}\n🌍 Серверы: {servers}\n📱 Устройства: {devices_used} / {device_limit}",
   "SUBSCRIPTION_DAILY_OVERVIEW_TEMPLATE": "👤 {full_name}\n💰 Баланс: {balance}\n📱 Подписка: {status_emoji} {status_display}{warning}{tariff_info_block}\n\n📱 Информация о подписке\n🎭 Тип: {subscription_type}\n📈 Трафик: {traffic}\n🌍 Серверы: {servers}\n📱 Устройства: {devices_used} / {device_limit}",
   "SUBSCRIPTION_DEACTIVATED_CHANNEL_UNSUBSCRIBE": "🚫 Ваша подписка приостановлена, так как вы отписались от обязательного канала.\n\nПодпишитесь на все каналы для восстановления доступа к VPN.",
   "SUBSCRIPTION_DEACTIVATED_CHANNEL_UNSUBSCRIBE_MULTI": "🚫 Ваши подписки приостановлены, так как вы отписались от обязательного канала.\n\nПодпишитесь на все каналы для восстановления доступа к VPN.",

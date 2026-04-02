@@ -1156,9 +1156,10 @@ def get_subscription_keyboard(
             keyboard.append(happ_row)
 
         if is_trial:
-            keyboard.append(
-                [InlineKeyboardButton(text=texts.MENU_BUY_SUBSCRIPTION, callback_data='subscription_upgrade')]
-            )
+            pass  # temporarily disabled: "Оставить заявку" button
+            # keyboard.append(
+            #     [InlineKeyboardButton(text=texts.MENU_BUY_SUBSCRIPTION, callback_data='subscription_upgrade')]
+            # )
         else:
             # Проверяем, является ли тариф суточным
             tariff = getattr(subscription, 'tariff', None) if subscription else None

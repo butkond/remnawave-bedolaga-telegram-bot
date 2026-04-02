@@ -137,7 +137,7 @@ DEFAULT_MENU_CONFIG: dict[str, Any] = {
             'builtin_id': 'balance',
             'text': {'ru': '💰 Баланс: {balance}', 'en': '💰 Balance: {balance}'},
             'action': 'menu_balance',
-            'enabled': True,
+            'enabled': False,
             'visibility': 'all',
             'conditions': None,
             'dynamic_text': True,

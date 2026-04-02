@@ -227,7 +227,7 @@ DEFAULT_MENU_CONFIG: dict[str, Any] = {
             'builtin_id': 'info',
             'text': {'ru': 'ℹ️ Инфо', 'en': 'ℹ️ Info'},
             'action': 'menu_info',
-            'enabled': True,
+            'enabled': False,
             'visibility': 'all',
             'conditions': None,
             'dynamic_text': False,

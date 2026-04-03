@@ -360,7 +360,7 @@ async def show_subscription_info(callback: types.CallbackQuery, db_user: User, d
                 tariff_info_lines = [
                     f'<b>📦 {html.escape(tariff.name)}</b>',
                     f'Тип: {tariff_type_str}',
-                    f'Трафик: {tariff.traffic_limit_gb} ГБ' if tariff.traffic_limit_gb > 0 else 'Трафик: ∞ Безлимит',
+                    f'Трафик в день: {tariff.traffic_limit_gb} ГБ' if tariff.traffic_limit_gb > 0 else 'Трафик: ∞ Безлимит',
                     f'Устройства: {tariff.device_limit}',
                 ]
 
@@ -446,7 +446,7 @@ async def show_subscription_info(callback: types.CallbackQuery, db_user: User, d
 
 📱 Информация о подписке
 🎭 Тип: {subscription_type}
-📈 Трафик: {traffic}
+📈 Трафик в день: {traffic}
 🌍 Серверы: {servers}
 📱 Устройства: {devices_used} / {device_limit}""",
         )
@@ -461,7 +461,7 @@ async def show_subscription_info(callback: types.CallbackQuery, db_user: User, d
 🎭 Тип: {subscription_type}
 📅 Действует до: {end_date}
 ⏰ Осталось: {time_left}
-📈 Трафик: {traffic}
+📈 Трафик в день: {traffic}
 🌍 Серверы: {servers}
 📱 Устройства: {devices_used} / {device_limit}""",
         )
@@ -2912,7 +2912,7 @@ async def handle_subscription_settings(callback: types.CallbackQuery, db_user: U
             '⚙️ <b>Настройки подписки</b>\n\n'
             '📊 <b>Текущие параметры:</b>\n'
             '🌐 Стран: {countries_count}\n'
-            '📈 Трафик: {traffic_used} / {traffic_limit}\n'
+            '📈 Трафик в день: {traffic_used} / {traffic_limit}\n'
             '📱 Устройства: {devices_used} / {devices_limit}\n\n'
             'Выберите что хотите изменить:'
         ),

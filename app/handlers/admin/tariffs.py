@@ -775,7 +775,7 @@ async def process_tariff_traffic(
     await message.answer(
         '📦 <b>Создание тарифа</b>\n\n'
         f'Название: <b>{data["tariff_name"]}</b>\n'
-        f'Трафик: <b>{traffic_display}</b>\n\n'
+        f'Трафик в день: <b>{traffic_display}</b>\n\n'
         'Шаг 3/6: Введите лимит устройств\n\n'
         'Пример: <i>1</i>, <i>3</i>, <i>5</i>',
         reply_markup=InlineKeyboardMarkup(
@@ -813,7 +813,7 @@ async def process_tariff_devices(
     await message.answer(
         '📦 <b>Создание тарифа</b>\n\n'
         f'Название: <b>{data["tariff_name"]}</b>\n'
-        f'Трафик: <b>{traffic_display}</b>\n'
+        f'Трафик в день: <b>{traffic_display}</b>\n'
         f'Устройств: <b>{devices}</b>\n\n'
         'Шаг 4/6: Введите уровень тарифа (1-10)\n\n'
         'Уровень используется для визуального отображения\n'
@@ -854,7 +854,7 @@ async def process_tariff_tier(
     await message.answer(
         '📦 <b>Создание тарифа</b>\n\n'
         f'Название: <b>{data["tariff_name"]}</b>\n'
-        f'Трафик: <b>{traffic_display}</b>\n'
+        f'Трафик в день: <b>{traffic_display}</b>\n'
         f'Устройств: <b>{data["tariff_devices"]}</b>\n'
         f'Уровень: <b>{tier}</b>\n\n'
         'Шаг 5/6: Выберите тип тарифа',
@@ -889,7 +889,7 @@ async def select_tariff_type_periodic(
     await callback.message.edit_text(
         '📦 <b>Создание тарифа</b>\n\n'
         f'Название: <b>{data["tariff_name"]}</b>\n'
-        f'Трафик: <b>{traffic_display}</b>\n'
+        f'Трафик в день: <b>{traffic_display}</b>\n'
         f'Устройств: <b>{data["tariff_devices"]}</b>\n'
         f'Уровень: <b>{data["tariff_tier"]}</b>\n'
         f'Тип: <b>📅 Периодный</b>\n\n'

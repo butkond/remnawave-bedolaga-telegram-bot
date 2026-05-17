@@ -2180,14 +2180,13 @@ async def show_sync_options(callback: types.CallbackQuery, db_user: User, db: As
     text = (
         '🔄 <b>Синхронизация с Remnawave</b>\n\n'
         '🔄 <b>Полная синхронизация выполняет:</b>\n'
-        '• Создание новых пользователей из панели в боте\n'
-        '• Обновление данных существующих пользователей\n'
-        '• Деактивация подписок пользователей, отсутствующих в панели\n'
+        '• Обновление в боте данных по пользователям, уже привязанным к панели по UUID\n'
+        '• Деактивация подписок, если сохранённый в боте UUID не найден среди загруженных из панели\n'
         '• Сохранение балансов пользователей\n'
         '• ⏱️ Время выполнения: 2-5 минут\n\n'
         '⚠️ <b>Важно:</b>\n'
         '• Во время синхронизации не выполняйте другие операции\n'
-        '• При полной синхронизации подписки пользователей, отсутствующих в панели, будут деактивированы\n'
+        '• При полной синхронизации подписки с «осиротевшим» UUID в панели будут деактивированы\n'
         '• Рекомендуется делать полную синхронизацию ежедневно\n'
         '• Баланс пользователей НЕ удаляется\n\n'
         '⬆️ <b>Обратная синхронизация:</b>\n'
@@ -2620,7 +2619,7 @@ async def show_sync_recommendations(callback: types.CallbackQuery, db_user: User
     elif recommendations['sync_type'] == 'update_only':
         text += '📈 Обновление данных'
     elif recommendations['sync_type'] == 'new_only':
-        text += '🆕 Синхронизация новых'
+        text += '🆕 Обновление по данным панели (без импорта новых пользователей)'
     else:
         text += '✅ Синхронизация не требуется'
 
@@ -2631,13 +2630,20 @@ async def show_sync_recommendations(callback: types.CallbackQuery, db_user: User
     keyboard = []
 
     if recommendations['should_sync'] and recommendations['sync_type'] != 'none':
+        st = recommendations['sync_type']
+        if st == 'update_only':
+            rec_callback = 'sync_update_data'
+        elif st == 'new_only':
+            rec_callback = 'sync_new_users'
+        elif st == 'all':
+            rec_callback = 'sync_all_users'
+        else:
+            rec_callback = 'sync_all_users'
         keyboard.append(
             [
                 types.InlineKeyboardButton(
                     text='✅ Выполнить рекомендацию',
-                    callback_data=f'sync_{recommendations["sync_type"]}_users'
-                    if recommendations['sync_type'] != 'update_only'
-                    else 'sync_update_data',
+                    callback_data=rec_callback,
                 )
             ]
         )
@@ -2849,12 +2855,12 @@ async def sync_users(callback: types.CallbackQuery, db_user: User, db: AsyncSess
 
     if sync_type == 'all_users':
         progress_text += '📋 Тип: Полная синхронизация\n'
-        progress_text += '• Создание новых пользователей\n'
-        progress_text += '• Обновление существующих\n'
+        progress_text += '• Обновление пользователей бота по данным панели (только уже в боте)\n'
         progress_text += '• Удаление неактуальных подписок\n'
     elif sync_type == 'new_users':
-        progress_text += '📋 Тип: Только новые пользователи\n'
-        progress_text += '• Создание пользователей из панели\n'
+        progress_text += '📋 Тип: Обновление по панели\n'
+        progress_text += '• Импорт пользователей из панели в бота отключён\n'
+        progress_text += '• Обновление данных по уже связанным пользователям\n'
     elif sync_type == 'update_data':
         progress_text += '📋 Тип: Обновление данных\n'
         progress_text += '• Обновление информации о трафике\n'
@@ -2866,7 +2872,7 @@ async def sync_users(callback: types.CallbackQuery, db_user: User, db: AsyncSess
 
     remnawave_service = RemnaWaveService()
 
-    sync_map = {'all_users': 'all', 'new_users': 'new_only', 'update_data': 'update_only'}
+    sync_map = {'all_users': 'all', 'new_users': 'update_only', 'update_data': 'update_only'}
 
     stats = await remnawave_service.sync_users_from_panel(db, sync_map.get(sync_type, 'all'))
 
@@ -3003,7 +3009,11 @@ def register_handlers(dp: Dispatcher):
     dp.callback_query.register(cancel_auto_sync_schedule, F.data == 'remnawave_auto_sync_cancel')
     dp.callback_query.register(run_auto_sync_now, F.data == 'remnawave_auto_sync_run')
     dp.callback_query.register(sync_all_users, F.data == 'sync_all_users')
+    dp.callback_query.register(sync_users, F.data.in_(('sync_new_users', 'sync_update_data')))
     dp.callback_query.register(sync_users_to_panel, F.data == 'sync_to_panel')
+    dp.callback_query.register(validate_subscriptions, F.data == 'sync_validate')
+    dp.callback_query.register(cleanup_subscriptions, F.data == 'sync_cleanup')
+    dp.callback_query.register(show_sync_recommendations, F.data == 'sync_recommendations')
     dp.callback_query.register(show_squad_migration_menu, F.data == 'admin_rw_migration')
     dp.callback_query.register(paginate_migration_source, F.data.startswith('admin_migration_source_page_'))
     dp.callback_query.register(handle_migration_source_selection, F.data.startswith('admin_migration_source_'))

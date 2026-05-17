@@ -847,7 +847,7 @@ async def sync_from_panel(
     admin: User = Depends(require_permission('remnawave:sync')),
     db: AsyncSession = Depends(get_cabinet_db),
 ) -> SyncResponse:
-    """Sync users from RemnaWave panel to bot."""
+    """Обновить в боте данные по пользователям, привязанным к панели по UUID (без импорта новых из панели)."""
     service = _get_service()
     _ensure_configured(service)
 

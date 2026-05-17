@@ -11,6 +11,10 @@ from app.database.crud.server_squad import (
     get_server_squad_by_uuid,
 )
 
+from app.config import settings
+from app.database.crud.subscription import get_active_subscriptions_by_user_id
+from app.database.crud.user import get_user_by_telegram_id
+
 from ..dependencies import get_db_session, require_api_token
 from ..schemas.remnawave import (
     RemnaWaveConnectionStatus,
@@ -392,14 +396,30 @@ async def list_inbounds(
 @router.get('/users/{telegram_id}/traffic', response_model=RemnaWaveUserTrafficResponse)
 async def get_user_traffic(
     telegram_id: int,
+    db: AsyncSession = Depends(get_db_session),
     _: Any = Security(require_api_token),
 ) -> RemnaWaveUserTrafficResponse:
     service = _get_service()
     _ensure_service_configured(service)
 
-    stats = await service.get_user_traffic_stats(telegram_id)
+    user = await get_user_by_telegram_id(db, telegram_id)
+    if not user:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Пользователь не найден в базе бота')
+
+    panel_uuid = user.remnawave_uuid
+    if settings.is_multi_tariff_enabled():
+        subs = await get_active_subscriptions_by_user_id(db, user.id)
+        panel_uuid = next((s.remnawave_uuid for s in subs if s.remnawave_uuid), None) or user.remnawave_uuid
+
+    if not panel_uuid:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            'Пользователь не связан с RemnaWave (нет remnawave UUID в боте)',
+        )
+
+    stats = await service.get_user_traffic_stats_by_uuid(panel_uuid)
     if not stats:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Пользователь не найден в RemnaWave')
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Запись в RemnaWave по UUID не найдена')
 
     return RemnaWaveUserTrafficResponse(telegram_id=telegram_id, **stats)
 

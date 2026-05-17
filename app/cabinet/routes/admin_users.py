@@ -301,22 +301,6 @@ async def _sync_subscription_to_panel(
                     else:
                         user.remnawave_uuid = None
 
-            # Fallback: search by telegram_id (single-tariff only)
-            if not panel_uuid and not settings.is_multi_tariff_enabled() and user.telegram_id:
-                existing_users = await api.get_user_by_telegram_id(user.telegram_id)
-                if existing_users:
-                    panel_uuid = existing_users[0].uuid
-                    user.remnawave_uuid = panel_uuid
-                    changes['remnawave_uuid_discovered'] = panel_uuid
-
-            # Fallback: search by email (single-tariff, OAuth users)
-            if not panel_uuid and not settings.is_multi_tariff_enabled() and user.email:
-                existing_users = await api.get_user_by_email(user.email)
-                if existing_users:
-                    panel_uuid = existing_users[0].uuid
-                    user.remnawave_uuid = panel_uuid
-                    changes['remnawave_uuid_discovered'] = panel_uuid
-
             if panel_uuid:
                 # Update existing user
                 update_kwargs = {
@@ -757,28 +741,26 @@ async def get_user_panel_info(
         async with service.get_api_client() as api:
             panel_user = None
 
-            # Multi-tariff: use per-subscription UUID
-            if settings.is_multi_tariff_enabled() and subscription_id:
-                from app.database.crud.subscription import get_subscription_by_id_for_user
+            # Multi-tariff: use per-subscription UUID (explicit subscription_id or первый с UUID)
+            if settings.is_multi_tariff_enabled():
+                from app.database.crud.subscription import (
+                    get_active_subscriptions_by_user_id,
+                    get_subscription_by_id_for_user,
+                )
 
-                sub = await get_subscription_by_id_for_user(db, subscription_id, user_id)
-                if sub and sub.remnawave_uuid:
-                    panel_user = await api.get_user_by_uuid(sub.remnawave_uuid)
-            # Single-tariff: user-level UUID
+                if subscription_id:
+                    sub = await get_subscription_by_id_for_user(db, subscription_id, user_id)
+                    if sub and sub.remnawave_uuid:
+                        panel_user = await api.get_user_by_uuid(sub.remnawave_uuid)
+                else:
+                    active_subs = await get_active_subscriptions_by_user_id(db, user.id)
+                    for s in active_subs:
+                        if s.remnawave_uuid:
+                            panel_user = await api.get_user_by_uuid(s.remnawave_uuid)
+                            if panel_user:
+                                break
             elif user.remnawave_uuid:
                 panel_user = await api.get_user_by_uuid(user.remnawave_uuid)
-
-            # Fallback: search by telegram_id (single-tariff only)
-            if not panel_user and not settings.is_multi_tariff_enabled() and user.telegram_id:
-                panel_users = await api.get_user_by_telegram_id(user.telegram_id)
-                if panel_users:
-                    panel_user = panel_users[0]
-
-            # Fallback: search by email (single-tariff, OAuth users)
-            if not panel_user and not settings.is_multi_tariff_enabled() and user.email:
-                panel_users_by_email = await api.get_user_by_email(user.email)
-                if panel_users_by_email:
-                    panel_user = panel_users_by_email[0]
 
             if not panel_user:
                 return UserPanelInfoResponse(found=False)
@@ -2709,18 +2691,14 @@ async def get_user_sync_status(
                 # Try by UUID first (works for all users including OAuth)
                 if sync_uuid:
                     panel_user = await api.get_user_by_uuid(sync_uuid)
+                elif settings.is_multi_tariff_enabled():
+                    from app.database.crud.subscription import get_active_subscriptions_by_user_id
 
-                # Fallback: search by telegram_id
-                if not panel_user and user.telegram_id:
-                    panel_users = await api.get_user_by_telegram_id(user.telegram_id)
-                    if panel_users:
-                        panel_user = panel_users[0]
-
-                # Fallback: search by email (OAuth users)
-                if not panel_user and user.email:
-                    panel_users_by_email = await api.get_user_by_email(user.email)
-                    if panel_users_by_email:
-                        panel_user = panel_users_by_email[0]
+                    for s in await get_active_subscriptions_by_user_id(db, user.id):
+                        if s.remnawave_uuid:
+                            panel_user = await api.get_user_by_uuid(s.remnawave_uuid)
+                            if panel_user:
+                                break
 
                 if panel_user:
                     panel_found = True
@@ -2870,7 +2848,7 @@ async def sync_user_from_panel(
             selected_sub = None
 
         async with service.get_api_client() as api:
-            # Find user in panel: UUID → telegram_id → email
+            # Панель: только по сохранённому UUID (без поиска по telegram/email).
             panel_user = None
 
             if settings.is_multi_tariff_enabled():
@@ -2893,21 +2871,11 @@ async def sync_user_from_panel(
             elif user.remnawave_uuid:
                 panel_user = await api.get_user_by_uuid(user.remnawave_uuid)
 
-            if not panel_user and user.telegram_id:
-                panel_users = await api.get_user_by_telegram_id(user.telegram_id)
-                if panel_users:
-                    panel_user = panel_users[0]
-
-            if not panel_user and user.email:
-                panel_users_by_email = await api.get_user_by_email(user.email)
-                if panel_users_by_email:
-                    panel_user = panel_users_by_email[0]
-
             if not panel_user:
                 return SyncFromPanelResponse(
                     success=False,
                     message='User not found in panel',
-                    errors=['No user found in Remnawave panel by UUID, telegram_id, or email'],
+                    errors=['No user found in Remnawave panel: sync requires remnawave UUID stored in bot'],
                 )
 
             # Build panel info
@@ -3183,22 +3151,6 @@ async def sync_user_to_panel(
                         sub.remnawave_uuid = None
                     else:
                         user.remnawave_uuid = None
-
-            # Fallback: search by telegram_id (single-tariff only)
-            if not panel_uuid and not settings.is_multi_tariff_enabled() and user.telegram_id:
-                existing_users = await api.get_user_by_telegram_id(user.telegram_id)
-                if existing_users:
-                    panel_uuid = existing_users[0].uuid
-                    user.remnawave_uuid = panel_uuid
-                    changes['remnawave_uuid_discovered'] = panel_uuid
-
-            # Fallback: search by email (single-tariff, OAuth users)
-            if not panel_uuid and not settings.is_multi_tariff_enabled() and user.email:
-                existing_users = await api.get_user_by_email(user.email)
-                if existing_users:
-                    panel_uuid = existing_users[0].uuid
-                    user.remnawave_uuid = panel_uuid
-                    changes['remnawave_uuid_discovered'] = panel_uuid
 
             if panel_uuid:
                 # Update existing user

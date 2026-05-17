@@ -339,14 +339,14 @@ class SubscriptionService:
             except Exception:
                 pass
 
-        if not existing_users and user.telegram_id:
-            existing_users = await api.get_user_by_telegram_id(user.telegram_id)
+        # if not existing_users and user.telegram_id:
+        #     existing_users = await api.get_user_by_telegram_id(user.telegram_id)
 
-        if not existing_users and user.email:
-            try:
-                existing_users = await api.get_user_by_email(user.email)
-            except Exception:
-                pass
+        # if not existing_users and user.email:
+        #     try:
+        #         existing_users = await api.get_user_by_email(user.email)
+        #     except Exception:
+        #         pass
 
         common_kwargs = dict(
             status=UserStatus.ACTIVE,
@@ -841,17 +841,6 @@ class SubscriptionService:
                                 '⚠️ UUID не найден в панели',
                                 user_log=user_log,
                                 remnawave_uuid=check_uuid,
-                            )
-                            needs_cleanup = True
-                        elif (
-                            user.telegram_id
-                            and remnawave_user.telegram_id
-                            and remnawave_user.telegram_id != user.telegram_id
-                        ):
-                            logger.warning(
-                                '⚠️ Несоответствие telegram_id для panel',
-                                user_log=user_log,
-                                telegram_id=remnawave_user.telegram_id,
                             )
                             needs_cleanup = True
                 except Exception as api_error:

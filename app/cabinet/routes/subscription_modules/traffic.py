@@ -697,9 +697,7 @@ async def refresh_traffic(
             if settings.is_multi_tariff_enabled() and subscription.remnawave_uuid
             else user.remnawave_uuid
         )
-        if user.telegram_id and not settings.is_multi_tariff_enabled():
-            traffic_stats = await remnawave_service.get_user_traffic_stats(user.telegram_id)
-        elif _traffic_uuid:
+        if _traffic_uuid:
             traffic_stats = await remnawave_service.get_user_traffic_stats_by_uuid(_traffic_uuid)
         else:
             traffic_stats = None

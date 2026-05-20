@@ -104,15 +104,19 @@ async def handle_connect_subscription(
             ]
         )
 
-        await callback.message.edit_text(
-            texts.t(
-                'SUBSCRIPTION_CONNECT_MINIAPP_MESSAGE',
-                """📱 <b>Подключить VPN</b>
+        message_text = texts.t(
+            'SUBSCRIPTION_CONNECT_MINIAPP_MESSAGE',
+            """📱 <b>Подключить VPN</b>
 
 Нажмите кнопку ниже, чтобы подключить VPN:
 
 Вставьте полученную ссылку в браузер и следуйте инструкции. Или нажмите кнопку ниже.""",
-            ),
+        )
+        if subscription_link:
+            message_text += f'\n\n<blockquote><code>{subscription_link}</code></blockquote>'
+
+        await callback.message.edit_text(
+            message_text,
             reply_markup=keyboard,
             parse_mode='HTML',
         )
@@ -140,15 +144,19 @@ async def handle_connect_subscription(
             ]
         )
 
-        await callback.message.edit_text(
-            texts.t(
-                'SUBSCRIPTION_CONNECT_CUSTOM_MESSAGE',
-                """📱 <b>Подключить VPN</b>
+        message_text = texts.t(
+            'SUBSCRIPTION_CONNECT_CUSTOM_MESSAGE',
+            """📱 <b>Подключить VPN</b>
 
 Нажмите кнопку ниже, чтобы подключить VPN:
 
 Вставьте полученную ссылку в браузер и следуйте инструкции. Или нажмите кнопку ниже.""",
-            ),
+        )
+        if subscription_link:
+            message_text += f'\n\n<blockquote><code>{subscription_link}</code></blockquote>'
+
+        await callback.message.edit_text(
+            message_text,
             reply_markup=keyboard,
             parse_mode='HTML',
         )
@@ -162,15 +170,19 @@ async def handle_connect_subscription(
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
 
-        await callback.message.edit_text(
-            texts.t(
-                'SUBSCRIPTION_CONNECT_LINK_MESSAGE',
-                """📱 <b>Подключить VPN</b>
+        message_text = texts.t(
+            'SUBSCRIPTION_CONNECT_LINK_MESSAGE',
+            """📱 <b>Подключить VPN</b>
 
 Нажмите кнопку ниже, чтобы подключить VPN:
 
 Вставьте полученную ссылку в браузер и следуйте инструкции. Или нажмите кнопку ниже.""",
-            ),
+        )
+        if subscription_link:
+            message_text += f'\n\n<blockquote><code>{subscription_link}</code></blockquote>'
+
+        await callback.message.edit_text(
+            message_text,
             reply_markup=keyboard,
             parse_mode='HTML',
         )
@@ -192,15 +204,19 @@ async def handle_connect_subscription(
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
 
-        await callback.message.edit_text(
-            texts.t(
-                'SUBSCRIPTION_CONNECT_LINK_MESSAGE',
-                """📱 <b>Подключить VPN</b>
+        message_text = texts.t(
+            'SUBSCRIPTION_CONNECT_LINK_MESSAGE',
+            """📱 <b>Подключить VPN</b>
 
 Нажмите кнопку ниже, чтобы подключить VPN:
 
 Вставьте полученную ссылку в браузер и следуйте инструкции. Или нажмите кнопку ниже.""",
-            ),
+        )
+        if subscription_link:
+            message_text += f'\n\n<blockquote><code>{subscription_link}</code></blockquote>'
+
+        await callback.message.edit_text(
+            message_text,
             reply_markup=keyboard,
             parse_mode='HTML',
         )

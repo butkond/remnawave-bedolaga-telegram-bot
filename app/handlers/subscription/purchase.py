@@ -574,7 +574,7 @@ async def show_subscription_info(callback: types.CallbackQuery, db_user: User, d
 
         message += '\n\n' + texts.t(
             'SUBSCRIPTION_CONNECT_LINK_SECTION',
-            '🔗 <b>Скопируйте ссылку, вставьте в браузер и следуйте инструкции:</b>\n{subscription_url}',
+            '🔗 <b>Скопируйте ссылку, вставьте в браузер и следуйте инструкции:</b>\n<blockquote><code>{subscription_url}</code></blockquote>',
         ).format(subscription_url=subscription_link_display)
         message += '\n\n' + texts.t(
             'SUBSCRIPTION_CONNECT_LINK_PROMPT',
@@ -1142,7 +1142,7 @@ async def activate_trial(callback: types.CallbackQuery, db_user: User, db: Async
             else:
                 subscription_import_link = texts.t(
                     'SUBSCRIPTION_IMPORT_LINK_SECTION',
-                    '🔗 <b>Ваша ссылка для импорта в VPN приложение:</b>\n<code>{subscription_url}</code>',
+                    '🔗 <b>Ваша ссылка для импорта в VPN приложение:</b>\n<blockquote><code>{subscription_url}</code></blockquote>',
                 ).format(subscription_url=subscription_link)
 
                 trial_success_text = (
@@ -2649,7 +2649,7 @@ async def confirm_purchase(callback: types.CallbackQuery, state: FSMContext, db_
             else:
                 import_link_section = texts.t(
                     'SUBSCRIPTION_IMPORT_LINK_SECTION',
-                    '🔗 <b>Ваша ссылка для импорта в VPN приложение:</b>\\n<code>{subscription_url}</code>',
+                    '🔗 <b>Ваша ссылка для импорта в VPN приложение:</b>\\n<blockquote><code>{subscription_url}</code></blockquote>',
                 ).format(subscription_url=subscription_link)
 
                 success_text = (
@@ -3392,7 +3392,7 @@ async def handle_trial_pay_with_balance(callback: types.CallbackQuery, db_user: 
             else:
                 subscription_import_link = texts.t(
                     'SUBSCRIPTION_IMPORT_LINK_SECTION',
-                    '🔗 <b>Ваша ссылка для импорта в VPN приложение:</b>\n<code>{subscription_url}</code>',
+                    '🔗 <b>Ваша ссылка для импорта в VPN приложение:</b>\n<blockquote><code>{subscription_url}</code></blockquote>',
                 ).format(subscription_url=subscription_link)
 
                 trial_success_text = (

@@ -108,12 +108,10 @@ async def handle_connect_subscription(
             'SUBSCRIPTION_CONNECT_MINIAPP_MESSAGE',
             """📱 <b>Подключить VPN</b>
 
-Нажмите кнопку ниже, чтобы подключить VPN:
+{subscription_url}
 
 Вставьте полученную ссылку в браузер и следуйте инструкции. Или нажмите кнопку ниже.""",
-        )
-        if subscription_link:
-            message_text += f'\n\n<blockquote><code>{subscription_link}</code></blockquote>'
+        ).format(subscription_url=f'<blockquote><code>{subscription_link}</code></blockquote>')
 
         await callback.message.edit_text(
             message_text,
@@ -148,12 +146,10 @@ async def handle_connect_subscription(
             'SUBSCRIPTION_CONNECT_CUSTOM_MESSAGE',
             """📱 <b>Подключить VPN</b>
 
-Нажмите кнопку ниже, чтобы подключить VPN:
+{subscription_url}
 
 Вставьте полученную ссылку в браузер и следуйте инструкции. Или нажмите кнопку ниже.""",
-        )
-        if subscription_link:
-            message_text += f'\n\n<blockquote><code>{subscription_link}</code></blockquote>'
+        ).format(subscription_url=f'<blockquote><code>{subscription_link}</code></blockquote>')
 
         await callback.message.edit_text(
             message_text,
@@ -174,12 +170,10 @@ async def handle_connect_subscription(
             'SUBSCRIPTION_CONNECT_LINK_MESSAGE',
             """📱 <b>Подключить VPN</b>
 
-Нажмите кнопку ниже, чтобы подключить VPN:
+{subscription_url}
 
 Вставьте полученную ссылку в браузер и следуйте инструкции. Или нажмите кнопку ниже.""",
-        )
-        if subscription_link:
-            message_text += f'\n\n<blockquote><code>{subscription_link}</code></blockquote>'
+        ).format(subscription_url=f'<blockquote><code>{subscription_link}</code></blockquote>')
 
         await callback.message.edit_text(
             message_text,
@@ -208,12 +202,10 @@ async def handle_connect_subscription(
             'SUBSCRIPTION_CONNECT_LINK_MESSAGE',
             """📱 <b>Подключить VPN</b>
 
-Нажмите кнопку ниже, чтобы подключить VPN:
+{subscription_url}
 
 Вставьте полученную ссылку в браузер и следуйте инструкции. Или нажмите кнопку ниже.""",
-        )
-        if subscription_link:
-            message_text += f'\n\n<blockquote><code>{subscription_link}</code></blockquote>'
+        ).format(subscription_url=f'<blockquote><code>{subscription_link}</code></blockquote>')
 
         await callback.message.edit_text(
             message_text,

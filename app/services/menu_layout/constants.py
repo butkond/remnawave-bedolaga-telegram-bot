@@ -145,7 +145,7 @@ DEFAULT_MENU_CONFIG: dict[str, Any] = {
         'trial': {
             'type': 'builtin',
             'builtin_id': 'trial',
-            'text': {'ru': '🎁 Получить доступ', 'en': '🎁 Get access'},
+            'text': {'ru': '🎁 Получить бесплатный доступ', 'en': '🎁 Get access'},
             'action': 'menu_trial',
             'enabled': True,
             'visibility': 'all',

@@ -106,11 +106,13 @@ async def handle_connect_subscription(
 
         message_text = texts.t(
             'SUBSCRIPTION_CONNECT_MINIAPP_MESSAGE',
-            """📱 <b>Подключить VPN</b>
+            """🎉 Тестовая подписка активирована!
+
+🔗 <b>Ваша ссылка для импорта в VPN приложение:</b>
 
 {subscription_url}
 
-Вставьте полученную ссылку в браузер и следуйте инструкции. Или нажмите кнопку ниже.""",
+📱<b>ИНСТРУКЦИЯ</b> по кнопке ⬇️""",
         ).format(subscription_url=f'<blockquote><code>{subscription_link}</code></blockquote>')
 
         await callback.message.edit_text(
@@ -143,12 +145,14 @@ async def handle_connect_subscription(
         )
 
         message_text = texts.t(
-            'SUBSCRIPTION_CONNECT_CUSTOM_MESSAGE',
-            """📱 <b>Подключить VPN</b>
+            'SUBSCRIPTION_CONNECT_MINIAPP_MESSAGE',
+            """🎉 Тестовая подписка активирована!
+
+🔗 <b>Ваша ссылка для импорта в VPN приложение:</b>
 
 {subscription_url}
 
-Вставьте полученную ссылку в браузер и следуйте инструкции. Или нажмите кнопку ниже.""",
+📱<b>ИНСТРУКЦИЯ</b> по кнопке ⬇️""",
         ).format(subscription_url=f'<blockquote><code>{subscription_link}</code></blockquote>')
 
         await callback.message.edit_text(
@@ -167,12 +171,14 @@ async def handle_connect_subscription(
         keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
 
         message_text = texts.t(
-            'SUBSCRIPTION_CONNECT_LINK_MESSAGE',
-            """📱 <b>Подключить VPN</b>
+            'SUBSCRIPTION_CONNECT_MINIAPP_MESSAGE',
+            """🎉 Тестовая подписка активирована!
+
+🔗 <b>Ваша ссылка для импорта в VPN приложение:</b>
 
 {subscription_url}
 
-Вставьте полученную ссылку в браузер и следуйте инструкции. Или нажмите кнопку ниже.""",
+📱<b>ИНСТРУКЦИЯ</b> по кнопке ⬇️""",
         ).format(subscription_url=f'<blockquote><code>{subscription_link}</code></blockquote>')
 
         await callback.message.edit_text(
@@ -199,12 +205,14 @@ async def handle_connect_subscription(
         keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
 
         message_text = texts.t(
-            'SUBSCRIPTION_CONNECT_LINK_MESSAGE',
-            """📱 <b>Подключить VPN</b>
+            'SUBSCRIPTION_CONNECT_MINIAPP_MESSAGE',
+            """🎉 Тестовая подписка активирована!
+
+🔗 <b>Ваша ссылка для импорта в VPN приложение:</b>
 
 {subscription_url}
 
-Вставьте полученную ссылку в браузер и следуйте инструкции. Или нажмите кнопку ниже.""",
+📱<b>ИНСТРУКЦИЯ</b> по кнопке ⬇️""",
         ).format(subscription_url=f'<blockquote><code>{subscription_link}</code></blockquote>')
 
         await callback.message.edit_text(

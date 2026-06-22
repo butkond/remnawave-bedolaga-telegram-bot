@@ -1,4 +1,5 @@
 import sys
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -21,63 +22,68 @@ def _create_service() -> RemnaWaveService:
     return service
 
 
-def _make_panel_user(telegram_id: int, expire_at: str, status: str = 'ACTIVE') -> dict:
+def _make_panel_user(uuid: str, expire_at: str, status: str = 'ACTIVE', telegram_id: int | None = None) -> dict:
     return {
+        'uuid': uuid,
         'telegramId': telegram_id,
         'expireAt': expire_at,
         'status': status,
     }
 
 
+@asynccontextmanager
+async def _fake_savepoint():
+    """Заглушка SAVEPOINT (db.begin_nested) для тестов с AsyncMock."""
+    yield
+
+
 def test_deduplicate_prefers_latest_expire_date():
     service = _create_service()
 
-    telegram_id = 100
-    older = _make_panel_user(telegram_id, datetime(2025, 1, 1, 0, 0, 0, tzinfo=UTC).isoformat())
-    newer = _make_panel_user(telegram_id, datetime(2025, 2, 1, 0, 0, 0, tzinfo=UTC).isoformat())
+    uuid = 'uuid-1'
+    older = _make_panel_user(uuid, datetime(2025, 1, 1, 0, 0, 0, tzinfo=UTC).isoformat())
+    newer = _make_panel_user(uuid, datetime(2025, 2, 1, 0, 0, 0, tzinfo=UTC).isoformat())
 
     deduplicated = service._deduplicate_panel_users_by_telegram_id([older, newer])
 
-    assert deduplicated[telegram_id] is newer
+    assert deduplicated[uuid] is newer
 
 
 def test_deduplicate_prefers_active_status_on_same_expire():
     service = _create_service()
 
-    telegram_id = 200
+    uuid = 'uuid-2'
     expire = datetime(2025, 1, 1, 0, 0, 0, tzinfo=UTC).isoformat()
-    disabled = _make_panel_user(telegram_id, expire, status='DISABLED')
-    active = _make_panel_user(telegram_id, expire, status='ACTIVE')
+    disabled = _make_panel_user(uuid, expire, status='DISABLED')
+    active = _make_panel_user(uuid, expire, status='ACTIVE')
 
     deduplicated = service._deduplicate_panel_users_by_telegram_id([disabled, active])
 
-    assert deduplicated[telegram_id] is active
+    assert deduplicated[uuid] is active
 
 
-def test_deduplicate_ignores_records_without_expire_date():
+def test_deduplicate_skips_users_without_uuid():
     service = _create_service()
 
-    telegram_id = 300
-    missing_expire = _make_panel_user(telegram_id, '')
-    valid = _make_panel_user(telegram_id, datetime(2025, 3, 1, 0, 0, 0, tzinfo=UTC).isoformat())
+    without_uuid = _make_panel_user('', datetime(2025, 3, 1, 0, 0, 0, tzinfo=UTC).isoformat())
+    with_uuid = _make_panel_user('uuid-3', datetime(2025, 3, 1, 0, 0, 0, tzinfo=UTC).isoformat())
 
-    deduplicated = service._deduplicate_panel_users_by_telegram_id([missing_expire, valid])
+    deduplicated = service._deduplicate_panel_users_by_telegram_id([without_uuid, with_uuid])
 
-    assert deduplicated[telegram_id] is valid
+    assert list(deduplicated) == ['uuid-3']
+    assert deduplicated['uuid-3'] is with_uuid
 
 
 async def test_get_or_create_user_handles_unique_violation(monkeypatch):
     service = _create_service()
     db = AsyncMock()
+    db.begin_nested = lambda: _fake_savepoint()
 
     panel_user = {'telegramId': 555, 'username': 'existing'}
     existing_user = object()
 
     create_user_mock = AsyncMock(side_effect=IntegrityError('stmt', 'params', Exception('unique')))
     get_user_mock = AsyncMock(return_value=existing_user)
-    rollback_mock = AsyncMock()
-
-    db.rollback = rollback_mock
 
     monkeypatch.setattr('app.services.remnawave_service.create_user_no_commit', create_user_mock)
     monkeypatch.setattr(
@@ -91,12 +97,12 @@ async def test_get_or_create_user_handles_unique_violation(monkeypatch):
     assert created is False
     create_user_mock.assert_awaited_once()
     get_user_mock.assert_awaited_once_with(db, 555)
-    rollback_mock.assert_awaited()
 
 
 async def test_get_or_create_user_creates_new(monkeypatch):
     service = _create_service()
     db = AsyncMock()
+    db.begin_nested = lambda: _fake_savepoint()
 
     panel_user = {'telegramId': 777, 'username': 'new_user'}
     new_user = object()
@@ -117,3 +123,14 @@ async def test_get_or_create_user_creates_new(monkeypatch):
         last_name=None,
         language='ru',
     )
+
+
+async def test_get_or_create_user_requires_telegram_id():
+    """Записи панели без telegram_id не создают пользователя бота."""
+    service = _create_service()
+    db = AsyncMock()
+
+    user, created = await service._get_or_create_bot_user_from_panel(db, {'telegramId': None, 'email': 'x@y.z'})
+
+    assert user is None
+    assert created is False

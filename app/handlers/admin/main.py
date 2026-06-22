@@ -38,11 +38,11 @@ async def show_admin_panel(callback: types.CallbackQuery, db_user: User, db: Asy
         from app.services.remnawave_service import RemnaWaveService
 
         remnawave_service = RemnaWaveService()
-        stats = await remnawave_service.get_system_statistics()
-        system_stats = stats.get('system', {})
-        users_online = system_stats.get('users_online', 0)
-        users_today = system_stats.get('users_last_day', 0)
-        users_week = system_stats.get('users_last_week', 0)
+        # Показатели онлайна — только по пользователям этого бота
+        bot_stats = await remnawave_service.get_bot_users_statistics(db)
+        users_online = bot_stats.get('users_online', 0)
+        users_today = bot_stats.get('users_last_day', 0)
+        users_week = bot_stats.get('users_last_week', 0)
         admin_text = admin_text.replace(
             '\n\nВыберите раздел для управления:',
             (

@@ -549,6 +549,80 @@ class SubscriptionService:
             return f'user {user.id} ({user.email})'
         return f'user {user.id}'
 
+    async def bulk_extend_subscriptions(
+        self,
+        db: AsyncSession,
+        days: int,
+        *,
+        admin_id: int | None = None,
+        only_active: bool = False,
+    ) -> dict[str, int]:
+        """Массово продлевает (или сокращает) подписки пользователей бота.
+
+        ``days`` может быть отрицательным — тогда срок подписки сокращается, как в
+        персональном продлении. Продление в БД применяется к каждой подписке
+        отдельно (коммит на запись), синхронизация с панелью — best-effort.
+        Возвращает ``{'total', 'ok', 'errors'}``.
+        """
+
+        from app.database.crud.subscription import extend_subscription
+
+        query = select(Subscription)
+        if only_active:
+            query = query.where(
+                Subscription.status.in_([SubscriptionStatus.ACTIVE.value, SubscriptionStatus.TRIAL.value])
+            )
+
+        result = await db.execute(query)
+        subscriptions = list(result.scalars().all())
+
+        stats = {'total': len(subscriptions), 'ok': 0, 'errors': 0}
+        logger.info(
+            'Запуск массового продления подписок',
+            days=days,
+            admin_id=admin_id,
+            only_active=only_active,
+            total=stats['total'],
+        )
+
+        for subscription in subscriptions:
+            try:
+                await extend_subscription(db, subscription, days)
+            except Exception as extend_error:
+                logger.error(
+                    'Ошибка массового продления подписки (БД)',
+                    subscription_id=subscription.id,
+                    error=extend_error,
+                )
+                stats['errors'] += 1
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
+                continue
+
+            # Синхронизация с панелью — best-effort: локальное продление уже сохранено
+            try:
+                await self.update_remnawave_user(db, subscription)
+            except Exception as panel_error:
+                logger.warning(
+                    'Не удалось синхронизировать продление с панелью',
+                    subscription_id=subscription.id,
+                    error=panel_error,
+                )
+
+            stats['ok'] += 1
+
+        logger.info(
+            'Массовое продление подписок завершено',
+            days=days,
+            admin_id=admin_id,
+            total=stats['total'],
+            ok=stats['ok'],
+            errors=stats['errors'],
+        )
+        return stats
+
     async def _reset_user_traffic(
         self,
         api: RemnaWaveAPI,

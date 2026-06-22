@@ -42,7 +42,13 @@ async def start_stars_payment(callback: types.CallbackQuery, db_user: User, stat
         await callback.answer()
         return
 
-    message_text = texts.TOP_UP_AMOUNT
+    message_text = """
+Пополняйте звезды по карте через @PremiumBot
+
+💳 Введите сумму для пополнения (в рублях):
+    """
+
+    # message_text = texts.TOP_UP_AMOUNT
 
     keyboard = get_back_keyboard(db_user.language)
 

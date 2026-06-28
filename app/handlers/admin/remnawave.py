@@ -955,6 +955,14 @@ async def show_system_stats(callback: types.CallbackQuery, db_user: User, db: As
 
     system = stats.get('system', {})
     users_by_status = stats.get('users_by_status', {})
+
+    # Пользовательские метрики считаем только по пользователям этого бота,
+    # серверные/трафик по нодам остаются панель-уровневыми.
+    bot_stats = await remnawave_service.get_bot_users_statistics(db)
+    users = bot_stats if 'error' not in bot_stats else system
+    if 'error' not in bot_stats:
+        users_by_status = bot_stats.get('users_by_status', {})
+
     server_info = stats.get('server_info', {})
     bandwidth = stats.get('bandwidth', {})
     traffic_periods = stats.get('traffic_periods', {})
@@ -1000,11 +1008,11 @@ async def show_system_stats(callback: types.CallbackQuery, db_user: User, db: As
 - Свободно: {format_bytes(server_info.get('memory_free', 0))}
 - Uptime: {uptime_str}
 
-👥 <b>Пользователи ({system.get('total_users', 0)} всего):</b>
-- 🟢 Онлайн сейчас: {system.get('users_online', 0)}
-- 📅 За сутки: {system.get('users_last_day', 0)}
-- 📊 За неделю: {system.get('users_last_week', 0)}
-- 💤 Никогда не заходили: {system.get('users_never_online', 0)}
+👥 <b>Пользователи бота ({users.get('total_users', 0)} всего):</b>
+- 🟢 Онлайн сейчас: {users.get('users_online', 0)}
+- 📅 За сутки: {users.get('users_last_day', 0)}
+- 📊 За неделю: {users.get('users_last_week', 0)}
+- 💤 Никогда не заходили: {users.get('users_never_online', 0)}
 
 <b>Статусы пользователей:</b>
 {users_status_text}
@@ -1023,7 +1031,7 @@ async def show_system_stats(callback: types.CallbackQuery, db_user: User, db: As
 
     text += f"""
 
-📈 <b>Общий трафик пользователей:</b> {format_bytes(system.get('total_user_traffic', 0))}
+📈 <b>Общий трафик пользователей бота:</b> {format_bytes(users.get('total_user_traffic', 0))}
 
 📊 <b>Трафик по периодам:</b>
 - 2 дня: {format_bytes(traffic_periods.get('last_2_days', {}).get('current', 0))}{format_traffic_change(traffic_periods.get('last_2_days', {}).get('difference', ''))}
@@ -2180,11 +2188,13 @@ async def show_sync_options(callback: types.CallbackQuery, db_user: User, db: As
     text = (
         '🔄 <b>Синхронизация с Remnawave</b>\n\n'
         '🔄 <b>Полная синхронизация выполняет:</b>\n'
-        '• Обновление в боте данных по пользователям, уже привязанным к панели по UUID\n'
+        '• Импорт «своих» пользователей панели в бота (username по шаблону или уже привязанные по UUID)\n'
+        '• Обновление в боте данных по привязанным пользователям\n'
         '• Деактивация подписок, если сохранённый в боте UUID не найден среди загруженных из панели\n'
         '• Сохранение балансов пользователей\n'
         '• ⏱️ Время выполнения: 2-5 минут\n\n'
         '⚠️ <b>Важно:</b>\n'
+        '• Импортируются только пользователи этого бота (по шаблону username), чужие не затрагиваются\n'
         '• Во время синхронизации не выполняйте другие операции\n'
         '• При полной синхронизации подписки с «осиротевшим» UUID в панели будут деактивированы\n'
         '• Рекомендуется делать полную синхронизацию ежедневно\n'

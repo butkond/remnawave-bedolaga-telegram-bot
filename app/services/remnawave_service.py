@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 import structlog
 from sqlalchemy import String, and_, cast, delete, func, select, update
-
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -17,7 +17,10 @@ from app.database.crud.server_squad import get_server_squad_by_uuid
 from app.database.crud.subscription import (
     decrement_subscription_server_counts,
 )
-
+from app.database.crud.user import (
+    create_user_no_commit,
+    get_user_by_telegram_id,
+)
 from app.database.models import (
     ServerSquad,
     Subscription,
@@ -476,14 +479,81 @@ class RemnaWaveService:
         db: AsyncSession,
         panel_user: dict[str, Any],
     ) -> tuple[User | None, bool]:
-        """UUID-only режим: автосоздание/поиск пользователя по telegram/email отключен."""
-        _ = db
-        _ = panel_user
+        """Возвращает пользователя бота, создавая его при необходимости.
 
-        logger.warning(
-            '⏭️ UUID-only режим: _get_or_create_bot_user_from_panel отключен (match/create по telegram/email запрещен)'
+        При конфликте уникальности telegram_id повторно загружает пользователя
+        из базы данных и сообщает, что запись не была создана заново.
+        """
+
+        telegram_id = panel_user.get('telegramId')
+        if telegram_id is None:
+            return None, False
+
+        # Извлекаем настоящее имя пользователя из описания
+        description = panel_user.get('description') or ''
+        first_name_from_desc, last_name_from_desc, username_from_desc = self._extract_user_data_from_description(
+            description
         )
-        return None, False
+
+        # Используем извлеченное имя или дефолтное значение
+        fallback_first_name = f'User {telegram_id}'
+        full_first_name = fallback_first_name
+        full_last_name = None
+
+        if (first_name_from_desc and last_name_from_desc) or first_name_from_desc:
+            full_first_name = first_name_from_desc
+            full_last_name = last_name_from_desc
+
+        username = username_from_desc or panel_user.get('username')
+
+        try:
+            create_kwargs = dict(
+                db=db,
+                telegram_id=telegram_id,
+                username=username,
+                first_name=full_first_name,
+                last_name=full_last_name,
+                language='ru',
+            )
+
+            # Используем SAVEPOINT чтобы при IntegrityError откатить только
+            # вложенную транзакцию, а не всю сессию. Полный rollback помечает
+            # ВСЕ объекты сессии как expired, что вызывает MissingGreenlet
+            # при последующем sync-доступе к атрибутам ORM-объектов.
+            async with db.begin_nested():
+                db_user = await create_user_no_commit(**create_kwargs)
+            return db_user, True
+        except IntegrityError as create_error:
+            logger.info(
+                '♻️ Пользователь с telegram_id уже существует. Используем существующую запись.', telegram_id=telegram_id
+            )
+
+            try:
+                existing_user = await get_user_by_telegram_id(db, telegram_id)
+                if existing_user is None:
+                    logger.error(
+                        '❌ Не удалось найти существующего пользователя с telegram_id', telegram_id=telegram_id
+                    )
+                    return None, False
+
+                logger.debug(
+                    'Используется существующий пользователь после конфликта уникальности',
+                    telegram_id=telegram_id,
+                    create_error=create_error,
+                )
+                return existing_user, False
+            except Exception as load_error:
+                logger.error(
+                    '❌ Ошибка загрузки существующего пользователя', telegram_id=telegram_id, load_error=load_error
+                )
+                return None, False
+        except Exception as general_error:
+            # SAVEPOINT (begin_nested) уже откатил частичную работу.
+            # Полный rollback не нужен — он бы пометил все объекты сессии expired.
+            logger.error(
+                '❌ Общая ошибка создания/загрузки пользователя', telegram_id=telegram_id, general_error=general_error
+            )
+            return None, False
 
     async def get_system_statistics(self) -> dict[str, Any]:
         try:
@@ -633,6 +703,91 @@ class RemnaWaveService:
             return {'error': str(e)}
         except Exception as e:
             logger.error('Общая ошибка получения системной статистики', error=e)
+            return {'error': f'Внутренняя ошибка сервера: {e!s}'}
+
+    async def get_bot_users_statistics(self, db: AsyncSession) -> dict[str, Any]:
+        """Статистика только по пользователям этого бота.
+
+        В отличие от ``get_system_statistics`` (агрегаты по всей панели), считает
+        показатели лишь по «своим» пользователям панели: тем, чей UUID уже привязан
+        к боту, либо чей username создан по шаблону ``REMNAWAVE_USER_USERNAME_TEMPLATE``.
+        Серверные/bandwidth-метрики остаются панель-уровневыми и берутся отдельно.
+        """
+
+        # UUID пользователей бота — для фильтра принадлежности
+        bot_uuids_result = await db.execute(select(User.remnawave_uuid).where(User.remnawave_uuid.isnot(None)))
+        bot_uuids = {row[0] for row in bot_uuids_result.all() if row[0]}
+
+        try:
+            now = datetime.now(UTC)
+            day_ago = now - timedelta(days=1)
+            week_ago = now - timedelta(days=7)
+            online_threshold = now - timedelta(minutes=3)
+
+            users_by_status: dict[str, int] = {}
+            total_users = 0
+            users_online = 0
+            users_last_day = 0
+            users_last_week = 0
+            users_never_online = 0
+            total_user_traffic = 0
+
+            async with self.get_api_client() as api:
+                start = 0
+                size = 500
+                while True:
+                    response = await api.get_all_users(start=start, size=size, enrich_happ_links=False)
+                    users_batch = response['users']
+                    total = response['total']
+
+                    for user_obj in users_batch:
+                        username = getattr(user_obj, 'username', None)
+                        uuid = getattr(user_obj, 'uuid', None)
+                        # Фильтр принадлежности боту
+                        if not ((uuid and uuid in bot_uuids) or settings.username_matches_template(username)):
+                            continue
+
+                        total_users += 1
+
+                        status_value = user_obj.status.value if getattr(user_obj, 'status', None) else 'UNKNOWN'
+                        users_by_status[status_value] = users_by_status.get(status_value, 0) + 1
+
+                        total_user_traffic += int(getattr(user_obj, 'used_traffic_bytes', 0) or 0)
+
+                        online_at = getattr(user_obj, 'online_at', None)
+                        if online_at is None:
+                            users_never_online += 1
+                            continue
+                        if online_at.tzinfo is None:
+                            online_at = online_at.replace(tzinfo=UTC)
+                        if online_at >= online_threshold:
+                            users_online += 1
+                        if online_at >= day_ago:
+                            users_last_day += 1
+                        if online_at >= week_ago:
+                            users_last_week += 1
+
+                    if len(users_batch) < size:
+                        break
+                    start += size
+                    if start > total:
+                        break
+
+            return {
+                'total_users': total_users,
+                'users_by_status': users_by_status,
+                'users_online': users_online,
+                'users_last_day': users_last_day,
+                'users_last_week': users_last_week,
+                'users_never_online': users_never_online,
+                'total_user_traffic': total_user_traffic,
+            }
+
+        except RemnaWaveAPIError as e:
+            logger.error('Ошибка Remnawave API при получении статистики пользователей бота', error=e)
+            return {'error': str(e)}
+        except Exception as e:
+            logger.error('Общая ошибка получения статистики пользователей бота', error=e)
             return {'error': f'Внутренняя ошибка сервера: {e!s}'}
 
     def _parse_bandwidth_string(self, bandwidth_str: str) -> int:
@@ -1149,14 +1304,35 @@ class RemnaWaveService:
             bot_users_by_uuid = {
                 user.remnawave_uuid: user for user in bot_users if getattr(user, 'remnawave_uuid', None)
             }
+            # Индекс по telegram_id — для импорта «своих» пользователей панели в бота
+            bot_users_by_telegram_id = {user.telegram_id: user for user in bot_users if user.telegram_id is not None}
 
             logger.info('📊 Пользователей в боте', bot_users_count=len(bot_users))
+
+            # Фильтр принадлежности боту: оставляем только пользователей панели, которые
+            # либо уже связаны с ботом по UUID, либо чей username создан по шаблону
+            # REMNAWAVE_USER_USERNAME_TEMPLATE. Чужих пользователей панели (других ботов) не трогаем.
+            total_panel_users = len(panel_users)
+            panel_users = [
+                panel_user
+                for panel_user in panel_users
+                if (panel_user.get('uuid') and panel_user['uuid'] in bot_users_by_uuid)
+                or settings.username_matches_template(panel_user.get('username'))
+            ]
+            logger.info(
+                '🔎 Фильтр принадлежности боту: отобрано пользователей панели',
+                selected=len(panel_users),
+                total=total_panel_users,
+            )
 
             panel_users_with_uuid = [user for user in panel_users if user.get('uuid')]
             unique_panel_users = list({user.get('uuid'): user for user in panel_users_with_uuid}.values())
             duplicates_count = len(panel_users_with_uuid) - len(unique_panel_users)
 
-            logger.info('📊 Пользователей в панели с UUID', panel_users_with_uuid_count=len(panel_users_with_uuid))
+            logger.info(
+                '📊 Пользователей в панели (после фильтра) с UUID',
+                panel_users_with_uuid_count=len(panel_users_with_uuid),
+            )
 
             if duplicates_count:
                 logger.info(
@@ -1164,25 +1340,13 @@ class RemnaWaveService:
                     duplicates_count=duplicates_count,
                 )
 
-            # Пользователи без UUID пропускаются: сопоставление только по UUID
+            # Пользователи без UUID пропускаются: панель всегда отдаёт UUID
             panel_users_without_uuid = [user for user in panel_users if not user.get('uuid')]
             if panel_users_without_uuid:
                 logger.info(
                     '⏭️ Пользователи панели без UUID пропущены',
                     panel_users_without_uuid_count=len(panel_users_without_uuid),
                 )
-
-            # Обработка только пользователей с совпадающим UUID в БД
-            panel_users_matched_by_uuid = [
-                panel_user for panel_user in unique_panel_users if bot_users_by_uuid.get(panel_user.get('uuid'))
-            ]
-            if panel_users_matched_by_uuid:
-                logger.info(
-                    '🔗 Пользователей панели, сопоставленных по UUID',
-                    panel_users_matched_by_uuid_count=len(panel_users_matched_by_uuid),
-                )
-
-            unique_panel_users = panel_users_matched_by_uuid
 
             # Данные о подписках загружаются пакетно заранее
             # Соберем все существующие подписки за один запрос
@@ -1213,14 +1377,45 @@ class RemnaWaveService:
                             panel_uuid=panel_uuid,
                         )
 
+                    telegram_id = panel_user.get('telegramId')
                     db_user = bot_users_by_uuid.get(panel_uuid)
+                    if not db_user and telegram_id is not None:
+                        db_user = bot_users_by_telegram_id.get(telegram_id)
 
-                    # Пользователей только из панели в бота не создаём —
-                    # обрабатываем только уже зарегистрированных в боте по UUID.
                     if not db_user:
-                        continue
+                        # Импорт «своего» пользователя из панели в бота.
+                        # Создаём только при наличии telegram_id и подходящем sync_type.
+                        if telegram_id is None or sync_type not in ['new_only', 'all']:
+                            continue
 
-                    if sync_type in ['update_only', 'all', 'new_only']:
+                        logger.info('🆕 Импорт пользователя из панели', telegram_id=telegram_id, panel_uuid=panel_uuid)
+                        db_user, is_created = await self._get_or_create_bot_user_from_panel(db, panel_user)
+                        if not db_user:
+                            logger.error(
+                                '❌ Не удалось импортировать пользователя из панели',
+                                telegram_id=telegram_id,
+                                panel_uuid=panel_uuid,
+                            )
+                            stats['errors'] += 1
+                            continue
+
+                        bot_users_by_telegram_id[telegram_id] = db_user
+                        _, uuid_mutation = self._ensure_user_remnawave_uuid(db_user, panel_uuid, bot_users_by_uuid)
+
+                        if is_created:
+                            await self._create_subscription_from_panel_data(db, db_user, panel_user)
+                            stats['created'] += 1
+                            logger.info(
+                                '✅ Импортирован пользователь с подпиской',
+                                telegram_id=telegram_id,
+                                panel_uuid=panel_uuid,
+                            )
+                        else:
+                            await self._update_subscription_from_panel_data(db, db_user, panel_user)
+                            stats['updated'] += 1
+                            logger.info('♻️ Обновлена подписка существующего пользователя', telegram_id=telegram_id)
+
+                    elif sync_type in ['update_only', 'all', 'new_only']:
                         logger.debug('🔄 Обновление пользователя', panel_uuid=panel_uuid)
 
                         # Refresh expired ORM-объекты перед sync-доступом.
@@ -1320,7 +1515,9 @@ class RemnaWaveService:
                 pending_uuid_mutations.clear()
 
             if sync_type == 'all':
-                logger.info('🗑️ Деактивация подписок пользователей, чей remnawave UUID отсутствует среди загруженных из панели...')
+                logger.info(
+                    '🗑️ Деактивация подписок пользователей, чей remnawave UUID отсутствует среди загруженных из панели...'
+                )
 
                 batch_size = 50
                 processed_count = 0
@@ -1613,6 +1810,22 @@ class RemnaWaveService:
                 '📊 [multi-tariff] Подписок с remnawave_uuid',
                 subs_count=len(subs_by_uuid),
                 users_legacy_count=len(users_by_uuid),
+            )
+
+            # Фильтр принадлежности боту: matching в multi-tariff и так идёт строго по
+            # remnawave_uuid собственных подписок/пользователей, но дополнительно отсекаем
+            # чужих пользователей панели по шаблону username, чтобы не трогать данные других ботов.
+            total_panel_users = len(panel_users)
+            panel_users = [
+                panel_user
+                for panel_user in panel_users
+                if (panel_user.get('uuid') in subs_by_uuid or panel_user.get('uuid') in users_by_uuid)
+                or settings.username_matches_template(panel_user.get('username'))
+            ]
+            logger.info(
+                '🔎 [multi-tariff] Фильтр принадлежности боту: отобрано пользователей панели',
+                selected=len(panel_users),
+                total=total_panel_users,
             )
 
             # Match and update
@@ -2587,9 +2800,7 @@ class RemnaWaveService:
                         user = subscription.user
 
                         panel_uuid = (
-                            subscription.remnawave_uuid
-                            if settings.is_multi_tariff_enabled()
-                            else user.remnawave_uuid
+                            subscription.remnawave_uuid if settings.is_multi_tariff_enabled() else user.remnawave_uuid
                         )
                         if not panel_uuid:
                             logger.debug(

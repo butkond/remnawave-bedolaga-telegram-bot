@@ -1,5 +1,6 @@
 import structlog
 from aiogram import Dispatcher, F, types
+from aiogram.fsm.context import FSMContext
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +11,9 @@ from app.database.crud.subscription import (
     get_expiring_subscriptions,
     get_subscriptions_statistics,
 )
-from app.database.models import User
+from app.database.models import Subscription, SubscriptionStatus, User
+from app.services.subscription_service import SubscriptionService
+from app.states import AdminStates
 from app.utils.decorators import admin_required, error_handler
 from app.utils.formatters import format_datetime
 
@@ -96,6 +99,7 @@ async def show_subscriptions_menu(callback: types.CallbackQuery, db_user: User, 
             types.InlineKeyboardButton(text='📊 Статистика', callback_data='admin_subs_stats'),
             types.InlineKeyboardButton(text='🌍 География', callback_data='admin_subs_countries'),
         ],
+        [types.InlineKeyboardButton(text='🚀 Массовое продление', callback_data='admin_mass_extend')],
         [types.InlineKeyboardButton(text='⬅️ Назад', callback_data='admin_panel')],
     ]
 
@@ -400,6 +404,96 @@ async def handle_subscriptions_pagination(callback: types.CallbackQuery, db_user
     await show_subscriptions_list(callback, db_user, db, page)
 
 
+async def _count_extendable_subscriptions(db: AsyncSession, only_active: bool = False) -> int:
+    query = select(func.count()).select_from(Subscription)
+    if only_active:
+        query = query.where(Subscription.status.in_([SubscriptionStatus.ACTIVE.value, SubscriptionStatus.TRIAL.value]))
+    result = await db.execute(query)
+    return int(result.scalar() or 0)
+
+
+@admin_required
+@error_handler
+async def start_mass_extend(callback: types.CallbackQuery, db_user: User, db: AsyncSession, state: FSMContext):
+    total = await _count_extendable_subscriptions(db)
+    await state.set_state(AdminStates.waiting_for_mass_extend_days)
+    await callback.message.edit_text(
+        '🚀 <b>Массовое продление подписок</b>\n\n'
+        f'Затрагивает всех пользователей бота с подпиской: <b>{total}</b>\n\n'
+        'Введите число дней для продления.\n'
+        'Можно ввести отрицательное число, чтобы сократить срок (например <code>-7</code>).\n\n'
+        'Для отмены — /cancel или кнопка ниже.',
+        reply_markup=types.InlineKeyboardMarkup(
+            inline_keyboard=[[types.InlineKeyboardButton(text='❌ Отмена', callback_data='admin_subscriptions')]]
+        ),
+    )
+    await callback.answer()
+
+
+@admin_required
+@error_handler
+async def process_mass_extend_days(message: types.Message, db_user: User, state: FSMContext, db: AsyncSession):
+    raw = (message.text or '').strip()
+    try:
+        days = int(raw)
+    except ValueError:
+        await message.answer('❌ Введите целое число дней (например 30 или -7).')
+        return
+
+    if days == 0:
+        await message.answer('❌ Число дней не может быть 0.')
+        return
+
+    total = await _count_extendable_subscriptions(db)
+    await state.update_data(mass_extend_days=days)
+    await state.set_state(None)
+
+    action = 'продлить на' if days > 0 else 'сократить на'
+    await message.answer(
+        '🚀 <b>Подтверждение массового продления</b>\n\n'
+        f'Действие: <b>{action} {abs(days)} дн.</b>\n'
+        f'Пользователей бота с подпиской: <b>{total}</b>\n\n'
+        '⚠️ Операция затронет всех и синхронизирует панель. Продолжить?',
+        reply_markup=types.InlineKeyboardMarkup(
+            inline_keyboard=[
+                [types.InlineKeyboardButton(text='✅ Подтвердить', callback_data='admin_mass_extend_confirm')],
+                [types.InlineKeyboardButton(text='❌ Отмена', callback_data='admin_subscriptions')],
+            ]
+        ),
+    )
+
+
+@admin_required
+@error_handler
+async def confirm_mass_extend(callback: types.CallbackQuery, db_user: User, db: AsyncSession, state: FSMContext):
+    data = await state.get_data()
+    days = data.get('mass_extend_days')
+    await state.clear()
+
+    if not days:
+        await callback.answer('❌ Сессия истекла, начните заново', show_alert=True)
+        return
+
+    await callback.message.edit_text('🚀 <b>Выполняется массовое продление...</b>\n\n⏳ Пожалуйста, подождите.')
+
+    service = SubscriptionService()
+    stats = await service.bulk_extend_subscriptions(db, days, admin_id=db_user.id)
+
+    action = 'продлены на' if days > 0 else 'сокращены на'
+    await callback.message.edit_text(
+        '✅ <b>Массовое продление завершено</b>\n\n'
+        f'Подписки {action} <b>{abs(days)} дн.</b>\n\n'
+        '📊 Результат:\n'
+        f'• Всего: {stats["total"]}\n'
+        f'• Успешно: {stats["ok"]}\n'
+        f'• Ошибок: {stats["errors"]}',
+        reply_markup=types.InlineKeyboardMarkup(
+            inline_keyboard=[[types.InlineKeyboardButton(text='⬅️ Назад', callback_data='admin_subscriptions')]]
+        ),
+    )
+    await callback.answer()
+
+
 def register_handlers(dp: Dispatcher):
     dp.callback_query.register(show_subscriptions_menu, F.data == 'admin_subscriptions')
     dp.callback_query.register(show_subscriptions_list, F.data == 'admin_subs_list')
@@ -407,5 +501,9 @@ def register_handlers(dp: Dispatcher):
     dp.callback_query.register(show_subscriptions_stats, F.data == 'admin_subs_stats')
     dp.callback_query.register(show_countries_management, F.data == 'admin_subs_countries')
     dp.callback_query.register(send_expiry_reminders, F.data == 'admin_send_expiry_reminders')
+
+    dp.callback_query.register(start_mass_extend, F.data == 'admin_mass_extend')
+    dp.callback_query.register(confirm_mass_extend, F.data == 'admin_mass_extend_confirm')
+    dp.message.register(process_mass_extend_days, AdminStates.waiting_for_mass_extend_days)
 
     dp.callback_query.register(handle_subscriptions_pagination, F.data.startswith('admin_subs_list_page_'))

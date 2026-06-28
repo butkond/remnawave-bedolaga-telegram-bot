@@ -5,7 +5,9 @@ import os
 import re
 from collections import defaultdict
 from datetime import time
+from functools import lru_cache
 from pathlib import Path
+from string import Formatter
 from typing import Literal
 from urllib.parse import quote as _url_quote, urlparse
 from zoneinfo import ZoneInfo
@@ -21,6 +23,28 @@ DEFAULT_DISPLAY_NAME_BANNED_KEYWORDS: list[str] = [
 ]
 
 USER_TAG_PATTERN = re.compile(r'^[A-Z0-9_]{1,16}$')
+
+
+@lru_cache(maxsize=8)
+def _compile_username_template_regex(template: str) -> re.Pattern[str]:
+    """Компилирует шаблон username RemnaWave в regex.
+
+    Литеральные части шаблона санитизируются так же, как в
+    ``Settings.format_remnawave_username`` (недопустимые символы -> ``_``,
+    схлопывание повторов ``_``). Плейсхолдер ``{telegram_id}`` -> ``\\d+``,
+    остальные плейсхолдеры -> ``.+``. Результат заякорен (fullmatch).
+    """
+
+    parts: list[str] = []
+    for literal, field_name, _spec, _conv in Formatter().parse(template):
+        if literal:
+            sanitized = re.sub(r'[^0-9A-Za-z_-]+', '_', literal)
+            sanitized = re.sub(r'_+', '_', sanitized)
+            parts.append(re.escape(sanitized))
+        if field_name is not None:
+            parts.append(r'\d+' if field_name == 'telegram_id' else r'.+')
+
+    return re.compile('^' + ''.join(parts) + '$')
 
 
 logger = structlog.get_logger(__name__)
@@ -1183,6 +1207,24 @@ class Settings(BaseSettings):
             sanitized_username = _sanitize(f'user_{identifier}')
 
         return sanitized_username[:36].strip('_-') or 'user'
+
+    def username_matches_template(self, username: str | None) -> bool:
+        """Проверяет, что username из панели создан по шаблону этого бота.
+
+        Используется для фильтрации пользователей панели при импорте/статистике:
+        бот работает только со «своими» пользователями (username совпадает с
+        ``REMNAWAVE_USER_USERNAME_TEMPLATE`` либо UUID уже есть в БД бота).
+        """
+
+        if not username:
+            return False
+
+        template = self.REMNAWAVE_USER_USERNAME_TEMPLATE or 'user_{telegram_id}'
+        candidate = username.lstrip('@').strip()
+        if not candidate:
+            return False
+
+        return _compile_username_template_regex(template).fullmatch(candidate) is not None
 
     @staticmethod
     def parse_daily_time_list(raw_value: str | None) -> list[time]:

@@ -1242,12 +1242,33 @@ async def reset_trials_for_users_without_paid_subscription(db: AsyncSession) -> 
     return reset_count
 
 
-async def update_subscription_usage(db: AsyncSession, subscription: Subscription, used_gb: float) -> Subscription:
+async def update_subscription_usage(
+    db: AsyncSession,
+    subscription: Subscription,
+    used_gb: float,
+    *,
+    bot=None,
+) -> Subscription:
+    old_used_gb = subscription.traffic_used_gb or 0.0
     subscription.traffic_used_gb = used_gb
     subscription.updated_at = datetime.now(UTC)
 
     await db.commit()
     await db.refresh(subscription)
+
+    try:
+        from app.services.referral_traffic_reward_service import referral_traffic_reward_service
+
+        await referral_traffic_reward_service.process_subscription_traffic_update(
+            db,
+            subscription,
+            old_used_gb,
+            used_gb,
+            bot=bot,
+        )
+        await db.commit()
+    except Exception as error:  # pragma: no cover - defensive logging
+        logger.warning('Failed to process referral traffic reward after usage update', error=error)
 
     return subscription
 

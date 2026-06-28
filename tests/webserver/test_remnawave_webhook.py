@@ -128,3 +128,39 @@ async def test_process_event_skips_intentional_admin_user_deleted() -> None:
     )
 
     assert processed is True
+
+
+@pytest.mark.anyio
+async def test_user_modified_updates_referral_traffic_reward(monkeypatch: pytest.MonkeyPatch) -> None:
+    bot = AsyncMock()
+    service = RemnaWaveWebhookService(bot)
+    db = AsyncMock()
+    user = SimpleNamespace(id=1, telegram_id=111, language='ru')
+    subscription = SimpleNamespace(
+        id=10,
+        user_id=1,
+        traffic_used_gb=5.0,
+        traffic_limit_gb=100,
+        end_date=None,
+        status='active',
+        subscription_url=None,
+        subscription_crypto_link=None,
+        remnawave_uuid='uuid-1',
+    )
+    traffic_reward_mock = AsyncMock()
+    monkeypatch.setattr(
+        'app.services.referral_traffic_reward_service.referral_traffic_reward_service.process_subscription_traffic_update',
+        traffic_reward_mock,
+    )
+
+    await service._handle_user_modified(
+        db,
+        user,
+        subscription,
+        {'usedTrafficBytes': str(12 * 1024**3)},
+    )
+
+    traffic_reward_mock.assert_awaited_once()
+    call = traffic_reward_mock.await_args
+    assert call.args[2] == 5.0
+    assert call.args[3] == 12.0

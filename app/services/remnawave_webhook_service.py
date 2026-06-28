@@ -754,7 +754,7 @@ class RemnaWaveWebhookService:
             return
 
         self._stamp_webhook_update(subscription)
-        await update_subscription_usage(db, subscription, 0.0)
+        await update_subscription_usage(db, subscription, 0.0, bot=self.bot)
         # Re-enable if was disabled/limited due to traffic limit
         if subscription.status in (SubscriptionStatus.DISABLED.value, SubscriptionStatus.LIMITED.value):
             await reactivate_subscription(db, subscription)
@@ -791,9 +791,22 @@ class RemnaWaveWebhookService:
         used_traffic_bytes = data.get('usedTrafficBytes')
         if used_traffic_bytes is not None:
             try:
+                old_used_gb = subscription.traffic_used_gb or 0.0
                 new_used_gb = round(int(used_traffic_bytes) / (1024**3), 2)
                 subscription.traffic_used_gb = new_used_gb
                 changed = True
+                try:
+                    from app.services.referral_traffic_reward_service import referral_traffic_reward_service
+
+                    await referral_traffic_reward_service.process_subscription_traffic_update(
+                        db,
+                        subscription,
+                        old_used_gb,
+                        new_used_gb,
+                        bot=self.bot,
+                    )
+                except Exception as error:  # pragma: no cover - defensive logging
+                    logger.warning('Failed to process referral traffic reward from webhook', error=error)
             except (ValueError, TypeError):
                 pass
 

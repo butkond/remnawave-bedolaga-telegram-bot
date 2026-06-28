@@ -39,7 +39,6 @@ from app.services.web_auth_service import (
     poll_web_auth_token,
 )
 from app.utils.cache import RateLimitCache, TokenReplayCache
-from app.utils.timezone import panel_datetime_to_utc
 
 from ..auth import (
     create_access_token,

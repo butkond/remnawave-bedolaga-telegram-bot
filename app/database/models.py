@@ -194,6 +194,11 @@ class WheelSpinPaymentType(Enum):
     SUBSCRIPTION_DAYS = 'subscription_days'
 
 
+class ReferralRewardMode(StrEnum):
+    BALANCE_COMMISSION = 'balance_commission'
+    TRAFFIC_REWARD = 'traffic_reward'
+
+
 class YooKassaPayment(Base):
     __tablename__ = 'yookassa_payments'
 
@@ -1193,6 +1198,8 @@ class User(Base):
     updated_at = Column(AwareDateTime(), default=func.now(), onupdate=func.now())
     last_activity = Column(AwareDateTime(), default=func.now())
     remnawave_uuid = Column(String(255), nullable=True, unique=True)
+    referral_reward_mode = Column(String(50), nullable=True, index=True)
+    referral_reward_mode_updated_at = Column(AwareDateTime(), nullable=True)
 
     # Cabinet authentication fields
     email = Column(String(255), unique=True, nullable=True, index=True)
@@ -1726,6 +1733,69 @@ class PromoCodeUse(Base):
 
     promocode = relationship('PromoCode', back_populates='uses')
     user = relationship('User')
+
+
+class ReferralAttribution(Base):
+    __tablename__ = 'referral_attributions'
+    __table_args__ = (
+        UniqueConstraint('referral_id', name='uq_referral_attributions_referral'),
+        Index('ix_referral_attributions_referrer_id', 'referrer_id'),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    referral_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    referrer_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    referral_code = Column(String(20), nullable=True)
+    mode = Column(String(50), nullable=False)
+    mode_captured_at = Column(AwareDateTime(), nullable=False, default=func.now())
+    created_at = Column(AwareDateTime(), default=func.now())
+    updated_at = Column(AwareDateTime(), default=func.now(), onupdate=func.now())
+
+    referral = relationship('User', foreign_keys=[referral_id])
+    referrer = relationship('User', foreign_keys=[referrer_id])
+
+
+class ReferralTrafficRewardGrant(Base):
+    __tablename__ = 'referral_traffic_reward_grants'
+    __table_args__ = (
+        UniqueConstraint('referrer_id', name='uq_referral_traffic_reward_grants_referrer'),
+        Index('ix_referral_traffic_reward_grants_referrer_id', 'referrer_id'),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    referrer_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    qualified_count_at_grant = Column(Integer, nullable=False)
+    reward_days = Column(Integer, nullable=False)
+    subscription_id = Column(Integer, ForeignKey('subscriptions.id', ondelete='SET NULL'), nullable=True)
+    granted_at = Column(AwareDateTime(), nullable=False, default=func.now())
+    created_at = Column(AwareDateTime(), default=func.now())
+    updated_at = Column(AwareDateTime(), default=func.now(), onupdate=func.now())
+
+    referrer = relationship('User', foreign_keys=[referrer_id])
+    subscription = relationship('Subscription')
+
+
+class ReferralTrafficQualification(Base):
+    __tablename__ = 'referral_traffic_qualifications'
+    __table_args__ = (
+        UniqueConstraint('referral_id', name='uq_referral_traffic_qualifications_referral'),
+        Index('ix_referral_traffic_qualifications_referrer_id', 'referrer_id'),
+        Index('ix_referral_traffic_qualifications_program_referral', 'referral_id', 'referrer_id'),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    referrer_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    referral_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    subscription_id = Column(Integer, ForeignKey('subscriptions.id', ondelete='SET NULL'), nullable=True)
+    remnawave_uuid = Column(String(255), nullable=True, index=True)
+    traffic_used_gb = Column(Float, nullable=False)
+    qualified_at = Column(AwareDateTime(), nullable=False, default=func.now())
+    created_at = Column(AwareDateTime(), default=func.now())
+    updated_at = Column(AwareDateTime(), default=func.now(), onupdate=func.now())
+
+    referrer = relationship('User', foreign_keys=[referrer_id])
+    referral = relationship('User', foreign_keys=[referral_id])
+    subscription = relationship('Subscription')
 
 
 class ReferralEarning(Base):

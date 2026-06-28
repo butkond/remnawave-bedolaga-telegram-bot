@@ -262,9 +262,17 @@ class Settings(BaseSettings):
     REFERRAL_COMMISSION_PERCENT: int = 25
     REFERRAL_MAX_COMMISSION_PAYMENTS: int = 0  # Макс. кол-во платежей реферала с комиссией (0 = без лимита)
 
+    REFERRAL_BALANCE_COMMISSION_ENABLED: bool = True
+    REFERRAL_TRAFFIC_REWARDS_ENABLED: bool = False
     REFERRAL_PROGRAM_ENABLED: bool = True
     REFERRAL_NOTIFICATIONS_ENABLED: bool = True
     REFERRAL_NOTIFICATION_RETRY_ATTEMPTS: int = 3
+    REFERRAL_TRAFFIC_REWARD_REQUIRED_REFERRALS: int = 3
+    REFERRAL_TRAFFIC_REWARD_THRESHOLD_GB: int = 50
+    REFERRAL_TRAFFIC_REWARD_DAYS: int = 7
+    REFERRAL_TRAFFIC_REWARD_QUALIFICATION_WINDOW_DAYS: int = 0
+    REFERRAL_TRAFFIC_REWARD_NOTIFY: bool = True
+    REFERRAL_MODE_SWITCH_COOLDOWN_HOURS: int = 24
 
     # Настройки вывода реферального баланса
     REFERRAL_WITHDRAWAL_ENABLED: bool = False  # Включить возможность вывода
@@ -2372,11 +2380,19 @@ class Settings(BaseSettings):
     def get_referral_settings(self) -> dict:
         return {
             'program_enabled': self.is_referral_program_enabled(),
+            'balance_commission_enabled': self.is_referral_balance_commission_enabled(),
             'minimum_topup_kopeks': self.REFERRAL_MINIMUM_TOPUP_KOPEKS,
             'first_topup_bonus_kopeks': self.REFERRAL_FIRST_TOPUP_BONUS_KOPEKS,
             'inviter_bonus_kopeks': self.REFERRAL_INVITER_BONUS_KOPEKS,
             'commission_percent': self.REFERRAL_COMMISSION_PERCENT,
             'notifications_enabled': self.REFERRAL_NOTIFICATIONS_ENABLED,
+            'traffic_rewards_enabled': self.is_referral_traffic_rewards_enabled(),
+            'traffic_reward_required_referrals': self.REFERRAL_TRAFFIC_REWARD_REQUIRED_REFERRALS,
+            'traffic_reward_threshold_gb': self.REFERRAL_TRAFFIC_REWARD_THRESHOLD_GB,
+            'traffic_reward_days': self.REFERRAL_TRAFFIC_REWARD_DAYS,
+            'traffic_reward_qualification_window_days': self.REFERRAL_TRAFFIC_REWARD_QUALIFICATION_WINDOW_DAYS,
+            'traffic_reward_notify': self.REFERRAL_TRAFFIC_REWARD_NOTIFY,
+            'mode_switch_cooldown_hours': self.REFERRAL_MODE_SWITCH_COOLDOWN_HOURS,
             'withdrawal_enabled': self.REFERRAL_WITHDRAWAL_ENABLED,
             'withdrawal_min_amount_kopeks': self.REFERRAL_WITHDRAWAL_MIN_AMOUNT_KOPEKS,
             'withdrawal_cooldown_days': self.REFERRAL_WITHDRAWAL_COOLDOWN_DAYS,
@@ -2387,7 +2403,26 @@ class Settings(BaseSettings):
         return self.is_referral_program_enabled() and self.REFERRAL_WITHDRAWAL_ENABLED
 
     def is_referral_program_enabled(self) -> bool:
-        return bool(self.REFERRAL_PROGRAM_ENABLED)
+        return bool(
+            self.REFERRAL_PROGRAM_ENABLED
+            and (self.REFERRAL_BALANCE_COMMISSION_ENABLED or self.REFERRAL_TRAFFIC_REWARDS_ENABLED)
+        )
+
+    def is_referral_balance_commission_enabled(self) -> bool:
+        return bool(self.REFERRAL_PROGRAM_ENABLED and self.REFERRAL_BALANCE_COMMISSION_ENABLED)
+
+    def is_referral_traffic_rewards_enabled(self) -> bool:
+        return bool(self.REFERRAL_PROGRAM_ENABLED and self.REFERRAL_TRAFFIC_REWARDS_ENABLED)
+
+    def has_referral_mode_selection(self) -> bool:
+        return self.is_referral_balance_commission_enabled() and self.is_referral_traffic_rewards_enabled()
+
+    def get_default_referral_reward_mode(self) -> str:
+        if self.is_referral_balance_commission_enabled():
+            return 'balance_commission'
+        if self.is_referral_traffic_rewards_enabled():
+            return 'traffic_reward'
+        return 'balance_commission'
 
     def is_referral_notifications_enabled(self) -> bool:
         return self.REFERRAL_NOTIFICATIONS_ENABLED

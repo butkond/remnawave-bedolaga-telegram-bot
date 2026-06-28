@@ -1870,8 +1870,24 @@ class RemnaWaveService:
                     # Update traffic
                     used_traffic_bytes = panel_user.get('usedTrafficBytes', 0) or 0
                     traffic_used_gb = used_traffic_bytes / (1024**3)
-                    if abs(subscription.traffic_used_gb - traffic_used_gb) > 0.01:
+                    old_used_gb = subscription.traffic_used_gb or 0.0
+                    if abs(old_used_gb - traffic_used_gb) > 0.01:
                         subscription.traffic_used_gb = traffic_used_gb
+                        try:
+                            from app.services.referral_traffic_reward_service import referral_traffic_reward_service
+
+                            await referral_traffic_reward_service.process_subscription_traffic_update(
+                                db,
+                                subscription,
+                                old_used_gb,
+                                traffic_used_gb,
+                            )
+                        except Exception as error:  # pragma: no cover - defensive logging
+                            logger.debug(
+                                'Failed to process referral traffic reward during multi-tariff sync',
+                                subscription_id=subscription.id,
+                                error=error,
+                            )
 
                     # traffic_limit_gb: bot is source of truth, do not overwrite from panel
 
@@ -2093,9 +2109,25 @@ class RemnaWaveService:
             used_traffic_bytes = _get_user_traffic_bytes(panel_user)
             traffic_used_gb = used_traffic_bytes / (1024**3)
 
-            if abs(subscription.traffic_used_gb - traffic_used_gb) > 0.01:
+            old_used_gb = subscription.traffic_used_gb or 0.0
+            if abs(old_used_gb - traffic_used_gb) > 0.01:
                 subscription.traffic_used_gb = traffic_used_gb
                 logger.debug('Обновлен использованный трафик', traffic_used_gb=traffic_used_gb)
+                try:
+                    from app.services.referral_traffic_reward_service import referral_traffic_reward_service
+
+                    await referral_traffic_reward_service.process_subscription_traffic_update(
+                        db,
+                        subscription,
+                        old_used_gb,
+                        traffic_used_gb,
+                    )
+                except Exception as error:  # pragma: no cover - defensive logging
+                    logger.debug(
+                        'Failed to process referral traffic reward during sync',
+                        subscription_id=subscription.id,
+                        error=error,
+                    )
 
             # traffic_limit_gb, device_limit: bot is source of truth, do not overwrite from panel
 

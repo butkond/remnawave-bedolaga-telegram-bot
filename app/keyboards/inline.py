@@ -9,6 +9,7 @@ from app.config import PERIOD_PRICES, settings
 from app.database.models import User
 from app.localization.loader import DEFAULT_LANGUAGE
 from app.localization.texts import get_texts
+from app.services.referral_traffic_reward_service import referral_traffic_reward_service
 from app.utils.miniapp_buttons import build_miniapp_or_callback_button
 from app.utils.price_display import PriceInfo, format_price_button
 from app.utils.pricing_utils import (
@@ -1868,7 +1869,7 @@ def get_autopay_notification_keyboard(subscription_id: int, language: str = DEFA
     )
 
 
-def get_referral_keyboard(language: str = DEFAULT_LANGUAGE) -> InlineKeyboardMarkup:
+def get_referral_keyboard(language: str = DEFAULT_LANGUAGE, referral_mode: str | None = None) -> InlineKeyboardMarkup:
     texts = get_texts(language)
 
     keyboard = [
@@ -1889,6 +1890,17 @@ def get_referral_keyboard(language: str = DEFAULT_LANGUAGE) -> InlineKeyboardMar
             )
         ],
     ]
+
+    if settings.has_referral_mode_selection():
+        current_mode = referral_traffic_reward_service.get_mode_title(language, referral_mode)
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    text=texts.t('REFERRAL_MODE_SWITCH_BUTTON', '⚙️ Режим: {mode}').format(mode=current_mode),
+                    callback_data='referral_mode_switch',
+                )
+            ]
+        )
 
     # Добавляем кнопку вывода, если включена
     if settings.is_referral_withdrawal_enabled():

@@ -177,7 +177,7 @@ async def _persist_broadcast_result(
                 broadcast_history = await session.get(BroadcastHistory, broadcast_id)
                 if not broadcast_history:
                     logger.critical(
-                        'Не удалось найти запись BroadcastHistory # для записи результатов', broadcast_id=broadcast_id
+                        'Не удалось найти запись BroadcastHistory для записи результатов', broadcast_id=broadcast_id
                     )
                     return
 
@@ -189,7 +189,7 @@ async def _persist_broadcast_result(
                 await session.commit()
 
                 logger.info(
-                    'Результаты рассылки сохранены (id sent failed blocked status=)',
+                    'Результаты рассылки сохранены',
                     broadcast_id=broadcast_id,
                     sent_count=sent_count,
                     failed_count=failed_count,
@@ -200,7 +200,7 @@ async def _persist_broadcast_result(
 
         except InterfaceError as error:
             logger.warning(
-                'Ошибка соединения при сохранении результатов рассылки (попытка /)',
+                'Ошибка соединения при сохранении результатов рассылки, повтор',
                 attempt=attempt,
                 max_retries=max_retries,
                 error=error,
@@ -210,14 +210,14 @@ async def _persist_broadcast_result(
                 retry_delay *= 2
             else:
                 logger.critical(
-                    'Не удалось сохранить результаты рассылки после попыток (id=)',
+                    'Не удалось сохранить результаты рассылки после всех попыток',
                     max_retries=max_retries,
                     broadcast_id=broadcast_id,
                 )
 
         except Exception as error:
             logger.critical(
-                'Неожиданная ошибка при сохранении результатов рассылки (id=)',
+                'Неожиданная ошибка при сохранении результатов рассылки',
                 broadcast_id=broadcast_id,
                 exc_info=error,
             )
@@ -1318,7 +1318,7 @@ async def confirm_broadcast(callback: types.CallbackQuery, db_user: User, state:
                 wait_seconds = e.retry_after + 1
                 flood_wait_until = asyncio.get_event_loop().time() + wait_seconds
                 logger.warning(
-                    'FloodWait: Telegram просит подождать сек (пользователь , попытка /)',
+                    'FloodWait: Telegram просит подождать перед повтором отправки',
                     retry_after=e.retry_after,
                     telegram_id=telegram_id,
                     attempt=attempt + 1,
@@ -1338,7 +1338,7 @@ async def confirm_broadcast(callback: types.CallbackQuery, db_user: User, state:
 
             except Exception as e:
                 logger.error(
-                    'Ошибка отправки пользователю (попытка /)',
+                    'Ошибка отправки пользователю, повтор',
                     telegram_id=telegram_id,
                     attempt=attempt + 1,
                     MAX_SEND_RETRIES=_MAX_SEND_RETRIES,
@@ -1504,7 +1504,7 @@ async def confirm_broadcast(callback: types.CallbackQuery, db_user: User, state:
 
     await state.clear()
     logger.info(
-        'Рассылка завершена админом : sent failed total= (медиа:)',
+        'Рассылка завершена админом',
         admin_telegram_id=admin_telegram_id,
         sent_count=sent_count,
         failed_count=failed_count,
@@ -1559,6 +1559,7 @@ async def get_target_users_count(db: AsyncSession, target: str) -> int:
                 Subscription.user_id == User.id,
                 Subscription.status == SubscriptionStatus.ACTIVE.value,
             )
+            .correlate(User)
             .exists()
         )
         query = select(sql_func.count(User.id)).where(base_filter, ~subquery)
@@ -1599,42 +1600,29 @@ async def get_target_users_count(db: AsyncSession, target: str) -> int:
         result = await db.execute(query)
         return result.scalar() or 0
 
-    if target == 'expired':
-        # Истекшие подписки
+    if target in ('expired', 'expired_subscribers'):
+        # Истекшие подписки — исключаем юзеров с хотя бы одной активной
         now = datetime.now(UTC)
         expired_statuses = [
             SubscriptionStatus.EXPIRED.value,
             SubscriptionStatus.DISABLED.value,
             SubscriptionStatus.LIMITED.value,
         ]
-        query = (
-            select(sql_func.count(distinct(User.id)))
-            .outerjoin(Subscription, User.id == Subscription.user_id)
+        has_active_sub = (
+            select(Subscription.id)
             .where(
-                base_filter,
-                or_(
-                    Subscription.status.in_(expired_statuses),
-                    and_(Subscription.end_date <= now, Subscription.status != SubscriptionStatus.ACTIVE.value),
-                    and_(Subscription.id == None, User.has_had_paid_subscription == True),
-                ),
+                Subscription.user_id == User.id,
+                Subscription.status == SubscriptionStatus.ACTIVE.value,
             )
+            .correlate(User)
+            .exists()
         )
-        result = await db.execute(query)
-        return result.scalar() or 0
-
-    if target == 'expired_subscribers':
-        # То же что и expired
-        now = datetime.now(UTC)
-        expired_statuses = [
-            SubscriptionStatus.EXPIRED.value,
-            SubscriptionStatus.DISABLED.value,
-            SubscriptionStatus.LIMITED.value,
-        ]
         query = (
             select(sql_func.count(distinct(User.id)))
             .outerjoin(Subscription, User.id == Subscription.user_id)
             .where(
                 base_filter,
+                ~has_active_sub,
                 or_(
                     Subscription.status.in_(expired_statuses),
                     and_(Subscription.end_date <= now, Subscription.status != SubscriptionStatus.ACTIVE.value),
@@ -1785,6 +1773,9 @@ async def get_target_users(db: AsyncSession, target: str) -> list:
         for user in users:
             subs = getattr(user, 'subscriptions', None) or []
             if subs:
+                has_active = any(s.is_active for s in subs)
+                if has_active:
+                    continue  # Skip users who have at least one active subscription
                 has_expired = any(s.status in expired_statuses or (s.end_date <= now and not s.is_active) for s in subs)
                 if has_expired:
                     expired_users.append(user)
@@ -1833,6 +1824,9 @@ async def get_target_users(db: AsyncSession, target: str) -> list:
         for user in users:
             subs = getattr(user, 'subscriptions', None) or []
             if subs:
+                has_active = any(s.is_active for s in subs)
+                if has_active:
+                    continue  # Skip users who have at least one active subscription
                 has_expired = any(s.status in expired_statuses or (s.end_date <= now and not s.is_active) for s in subs)
                 if has_expired:
                     expired_users.append(user)

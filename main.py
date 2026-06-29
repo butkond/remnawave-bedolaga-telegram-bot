@@ -16,13 +16,12 @@ from app.database.database import sync_postgres_sequences
 from app.database.migrations import run_alembic_upgrade
 from app.database.models import PaymentMethod
 from app.localization.loader import ensure_locale_templates
-from app.logging_config import setup_logging
+from app.logging_config import _resolve_log_level, setup_logging
 from app.services.backup_service import backup_service
 from app.services.ban_notification_service import ban_notification_service
 from app.services.broadcast_service import broadcast_service
 from app.services.contest_rotation_service import contest_rotation_service
 from app.services.daily_subscription_service import daily_subscription_service
-from app.services.external_admin_service import ensure_external_admin_token
 from app.services.log_rotation_service import log_rotation_service
 from app.services.maintenance_service import maintenance_service
 from app.services.monitoring_service import monitoring_service
@@ -119,7 +118,7 @@ async def main():
         log_handlers.append(stream_handler)
 
         logging.basicConfig(
-            level=getattr(logging, settings.LOG_LEVEL),
+            level=_resolve_log_level(settings.LOG_LEVEL),
             handlers=log_handlers,
             force=True,
         )
@@ -138,7 +137,7 @@ async def main():
         log_handlers.append(stream_handler)
 
         logging.basicConfig(
-            level=getattr(logging, settings.LOG_LEVEL),
+            level=_resolve_log_level(settings.LOG_LEVEL),
             handlers=log_handlers,
             force=True,
         )
@@ -154,6 +153,9 @@ async def main():
             ('Режим БД', settings.DATABASE_MODE),
         ]
     )
+
+    for insecure_default_warning in settings.collect_insecure_default_warnings():
+        logger.warning('⚠️ Insecure configuration default', detail=insecure_default_warning)
 
     async with timeline.stage('Подготовка локализаций', '🗂️', success_message='Шаблоны локализаций готовы') as stage:
         try:
@@ -270,10 +272,16 @@ async def main():
         ) as stage:
             try:
                 from app.database.database import AsyncSessionLocal
-                from app.services.payment_method_config_service import ensure_payment_method_configs
+                from app.services.payment_method_config_service import (
+                    ensure_payment_method_configs,
+                    refresh_display_name_overrides,
+                )
 
                 async with AsyncSessionLocal() as db:
                     await ensure_payment_method_configs(db)
+                    # Warm the display-name override cache so bot keyboards show
+                    # cabinet-configured method names (matches the cabinet).
+                    await refresh_display_name_overrides(db)
             except Exception as error:
                 stage.warning(f'Не удалось инициализировать платёжные методы: {error}')
                 logger.error('❌ Не удалось инициализировать платёжные методы', error=error)
@@ -441,6 +449,16 @@ async def main():
                 stage.warning(f'Ошибка запуска автосинхронизации: {e}')
                 logger.error('❌ Ошибка запуска автосинхронизации RemnaWave', error=e)
 
+        # Разовая фоновая чистка накопившихся дублей тарифных подписок (multi-tariff):
+        # лишние истёкшие дубли удаляются из БД и панели вместе, как штатное удаление.
+        # Идемпотентно — после первой чистки no-op; панель легла — повторит на след. старте.
+        try:
+            from app.services.subscription_dedup_service import dedupe_expired_tariff_subscriptions
+
+            asyncio.create_task(dedupe_expired_tariff_subscriptions())
+        except Exception as e:
+            logger.warning('Не удалось запустить чистку дублей подписок', error=e)
+
         payment_service = PaymentService(bot)
         auto_payment_verification_service.set_payment_service(payment_service)
 
@@ -515,24 +533,6 @@ async def main():
             else:
                 stage.skip('NaloGO отключен настройками')
 
-        async with timeline.stage(
-            'Внешняя админка',
-            '🛡️',
-            success_message='Токен внешней админки готов',
-        ) as stage:
-            try:
-                token = await ensure_external_admin_token(
-                    bot_user.username,
-                    bot_user.id,
-                )
-                if token:
-                    stage.log('Токен синхронизирован')
-                else:
-                    stage.warning('Не удалось получить токен внешней админки')
-            except Exception as error:  # pragma: no cover - защитный блок
-                stage.warning(f'Ошибка подготовки внешней админки: {error}')
-                logger.error('❌ Ошибка подготовки внешней админки', error=error)
-
         bot_run_mode = settings.get_bot_run_mode()
         polling_enabled = bot_run_mode == 'polling'
         telegram_webhook_enabled = bot_run_mode == 'webhook'
@@ -546,6 +546,7 @@ async def main():
                 settings.is_pal24_enabled(),
                 settings.is_wata_enabled(),
                 settings.is_heleket_enabled(),
+                settings.is_apple_iap_enabled(),
             ]
         )
 
@@ -607,6 +608,7 @@ async def main():
                         secret_token=settings.WEBHOOK_SECRET_TOKEN,
                         drop_pending_updates=False,  # Обрабатываем накопившиеся обновления
                         allowed_updates=allowed_updates,
+                        **({'ip_address': settings.WEBHOOK_IP} if settings.WEBHOOK_IP else {}),
                     )
                     stage.log(f'Webhook установлен: {webhook_url}')
                     stage.log(f'Allowed updates: {", ".join(sorted(allowed_updates)) if allowed_updates else "all"}')
@@ -662,8 +664,13 @@ async def main():
                 interval_minutes = daily_subscription_service.get_check_interval_minutes()
                 stage.log(f'Интервал проверки: {interval_minutes} мин')
             else:
-                daily_subscription_task = None
-                stage.skip('Суточные подписки отключены настройками')
+                # Суточные тарифы выключены, но сброс истёкших докупок трафика нужен
+                # любой установке, продающей пакеты ГБ: без него истёкший пакет роняет
+                # лимит мимо защиты от ухода в минус (#630055). Запускаем только его.
+                daily_subscription_task = asyncio.create_task(
+                    daily_subscription_service.start_traffic_reset_monitoring()
+                )
+                stage.log('Суточные тарифы выключены — запущен только сброс докупок трафика')
 
         async with timeline.stage(
             'Сервис проверки версий',
@@ -712,6 +719,8 @@ async def main():
             webhook_lines.append(f'WATA: {_fmt(settings.WATA_WEBHOOK_PATH)}')
         if settings.is_heleket_enabled():
             webhook_lines.append(f'Heleket: {_fmt(settings.HELEKET_WEBHOOK_PATH)}')
+        if settings.is_apple_iap_enabled():
+            webhook_lines.append(f'Apple IAP: {_fmt(settings.APPLE_IAP_WEBHOOK_PATH)}')
         if settings.is_platega_enabled():
             webhook_lines.append(f'Platega: {_fmt(settings.PLATEGA_WEBHOOK_PATH)}')
         if settings.is_cloudpayments_enabled():
@@ -794,10 +803,17 @@ async def main():
                 if daily_subscription_task and daily_subscription_task.done():
                     exception = daily_subscription_task.exception()
                     if exception:
-                        logger.error('Сервис суточных подписок завершился с ошибкой', error=exception)
                         if daily_subscription_service.is_enabled():
+                            logger.error('Сервис суточных подписок завершился с ошибкой', error=exception)
                             logger.info('🔄 Перезапуск сервиса суточных подписок...')
                             daily_subscription_task = asyncio.create_task(daily_subscription_service.start_monitoring())
+                        else:
+                            # Суточные выключены — крутился только сброс докупок трафика (#630055).
+                            logger.error('Цикл сброса докупок трафика завершился с ошибкой', error=exception)
+                            logger.info('🔄 Перезапуск сброса докупок трафика...')
+                            daily_subscription_task = asyncio.create_task(
+                                daily_subscription_service.start_traffic_reset_monitoring()
+                            )
 
                 if auto_verification_active and not auto_payment_verification_service.is_running():
                     logger.warning('Сервис автопроверки пополнений остановился, пробуем перезапустить...')

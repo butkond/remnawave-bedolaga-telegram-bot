@@ -2,7 +2,7 @@ import sys
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.exc import IntegrityError
@@ -31,10 +31,12 @@ def _make_panel_user(uuid: str, expire_at: str, status: str = 'ACTIVE', telegram
     }
 
 
-@asynccontextmanager
-async def _fake_savepoint():
-    """Заглушка SAVEPOINT (db.begin_nested) для тестов с AsyncMock."""
-    yield
+def _async_nested_ctx() -> MagicMock:
+    """Async context manager for ``db.begin_nested()`` (SAVEPOINT)."""
+    nested = MagicMock()
+    nested.__aenter__ = AsyncMock(return_value=None)
+    nested.__aexit__ = AsyncMock(return_value=None)
+    return nested
 
 
 def test_deduplicate_prefers_latest_expire_date():
@@ -77,7 +79,7 @@ def test_deduplicate_skips_users_without_uuid():
 async def test_get_or_create_user_handles_unique_violation(monkeypatch):
     service = _create_service()
     db = AsyncMock()
-    db.begin_nested = lambda: _fake_savepoint()
+    db.begin_nested = MagicMock(return_value=_async_nested_ctx())
 
     panel_user = {'telegramId': 555, 'username': 'existing'}
     existing_user = object()
@@ -102,7 +104,7 @@ async def test_get_or_create_user_handles_unique_violation(monkeypatch):
 async def test_get_or_create_user_creates_new(monkeypatch):
     service = _create_service()
     db = AsyncMock()
-    db.begin_nested = lambda: _fake_savepoint()
+    db.begin_nested = MagicMock(return_value=_async_nested_ctx())
 
     panel_user = {'telegramId': 777, 'username': 'new_user'}
     new_user = object()

@@ -126,11 +126,22 @@ def _build_subscription_detail_keyboard(sub_id: int, sub=None) -> types.InlineKe
     buttons.append([types.InlineKeyboardButton(text='🔄 Продлить', callback_data=f'se:{sub_id}')])
 
     if not is_inactive:
+        buttons.append([types.InlineKeyboardButton(text='💳 Автоплатеж', callback_data='subscription_autopay')])
         buttons.append([types.InlineKeyboardButton(text='📊 Трафик', callback_data=f'st:{sub_id}')])
         buttons.append([types.InlineKeyboardButton(text='📱 Устройства', callback_data=f'sd:{sub_id}')])
 
     if is_inactive:
         buttons.append([types.InlineKeyboardButton(text='🗑 Удалить подписку', callback_data=f'sub_del:{sub_id}')])
+
+    if not is_inactive and settings.is_subscription_revoke_enabled():
+        buttons.append(
+            [
+                types.InlineKeyboardButton(
+                    text='🔄 Перевыпустить',
+                    callback_data=f'sr:{sub_id}',
+                )
+            ]
+        )
 
     buttons.append([types.InlineKeyboardButton(text='◀️ К списку подписок', callback_data='my_subscriptions')])
 
@@ -189,6 +200,10 @@ async def show_subscription_detail(
     if not subscription:
         await callback.answer('Подписка не найдена', show_alert=True)
         return
+
+    # Persist active sub_id so downstream handlers without sub_id in callback_data
+    # (e.g. 'subscription_autopay') can resolve the right subscription via FSM.
+    await state.update_data(active_subscription_id=sub_id)
 
     tariff_name = subscription.tariff.name if subscription.tariff else 'Подписка'
 
@@ -433,6 +448,11 @@ async def handle_subscription_delete_execute(
     # Delete from RemnaWave panel (stops webhooks / phantom notifications)
     if subscription.remnawave_uuid:
         try:
+            from app.services.remnawave_webhook_service import RemnaWaveWebhookService
+
+            # Suppress the self-inflicted user.deleted webhook so its sibling-expiry
+            # sweep never touches the user's other (still-active) subscriptions.
+            RemnaWaveWebhookService.mark_intentional_panel_deletion(panel_uuids=[subscription.remnawave_uuid])
             service = SubscriptionService()
             await service.delete_remnawave_user(subscription.remnawave_uuid)
         except Exception as e:

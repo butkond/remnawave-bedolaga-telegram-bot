@@ -83,6 +83,45 @@ async def _resolve_subscription(callback, db_user, db, state=None):
     return await resolve_subscription_from_context(callback, db_user, db, state)
 
 
+async def _resolve_switch_subscription(callback, db_user, db, state=None):
+    """Resolve the subscription for tariff-switch flows (issue #3012).
+
+    Unlike the generic resolver, this NEVER reads the trailing callback segment as
+    a subscription_id — switch callbacks end in tariff_id/period, which the generic
+    resolver would mistake for a sub_id (and renew/switch the WRONG subscription
+    when that number equals one of the user's subscription ids). The switch entry
+    (show_tariff_switch_list / show_instant_switch_list) stores the chosen
+    subscription in FSM ``active_subscription_id``, so it is authoritative here.
+    """
+    from app.database.crud.subscription import (
+        get_active_subscriptions_by_user_id,
+        get_subscription_by_id_for_user,
+        get_subscription_by_user_id,
+    )
+
+    if not settings.is_multi_tariff_enabled():
+        sub = await get_subscription_by_user_id(db, db_user.id)
+        return sub, (sub.id if sub else None)
+
+    if state:
+        try:
+            data = await state.get_data()
+            fsm_sub_id = data.get('active_subscription_id')
+            if fsm_sub_id:
+                sub = await get_subscription_by_id_for_user(db, fsm_sub_id, db_user.id)
+                if sub:
+                    return sub, fsm_sub_id
+        except Exception:
+            pass
+
+    active_subs = await get_active_subscriptions_by_user_id(db, db_user.id)
+    if len(active_subs) == 1:
+        return active_subs[0], active_subs[0].id
+
+    await callback.answer('Выберите подписку', show_alert=True)
+    return None, None
+
+
 def _apply_promo_discount(price: int, group_pct: int, offer_pct: int = 0) -> int:
     """Применяет стекинг скидок к цене (sequential floor division, как PricingEngine)."""
     from app.services.pricing_engine import PricingEngine
@@ -2379,6 +2418,7 @@ def get_tariff_extend_keyboard(
     language: str,
     db_user: User | None = None,
     subscription_device_limit: int | None = None,
+    subscription_id: int | None = None,
 ) -> InlineKeyboardMarkup:
     """Создает клавиатуру выбора периода для продления по тарифу с учетом скидок по периодам."""
     from app.services.pricing_engine import PricingEngine
@@ -2423,12 +2463,15 @@ def get_tariff_extend_keyboard(
         else:
             price_text = format_price_kopeks(price)
 
-        button_text = f"{format_period(period)} — {price_text}"
+        button_text = f'{format_period(period)} — {price_text}'
+        # subscription_id ОБЯЗАН быть первым сегментом: иначе резолвер по callback
+        # принял бы хвостовой {period} за subscription_id (см. issue #3012 —
+        # период совпадал с id чужой подписки и продлевалась не та подписка).
         buttons.append(
             [
                 InlineKeyboardButton(
                     text=button_text,
-                    callback_data=f"tariff_extend:{tariff.id}:{period}",
+                    callback_data=f'tariff_extend:{subscription_id}:{tariff.id}:{period}',
                 )
             ]
         )
@@ -2441,6 +2484,7 @@ def get_tariff_extend_keyboard(
 
 
 def get_tariff_extend_confirm_keyboard(
+    subscription_id: int,
     tariff_id: int,
     period: int,
     language: str,
@@ -2451,8 +2495,8 @@ def get_tariff_extend_confirm_keyboard(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="✅ Подтвердить продление",
-                    callback_data=f"tariff_ext_confirm:{tariff_id}:{period}",
+                    text='✅ Подтвердить продление',
+                    callback_data=f'tariff_ext_confirm:{subscription_id}:{tariff_id}:{period}',
                 )
             ],
             [
@@ -2468,18 +2512,25 @@ async def show_tariff_extend(
     callback: types.CallbackQuery,
     db_user: User,
     db: AsyncSession,
+    subscription_id: int | None = None,
 ):
-    """Показывает экран продления по текущему тарифу."""
+    """Показывает экран продления по текущему тарифу.
+
+    ``subscription_id`` передаётся явно из кнопки «Назад» (где хвост callback —
+    это tariff_id, а не id подписки). Если не задан — берём из ``se:{id}`` (хвост
+    = реальный id подписки).
+    """
     get_texts(db_user.language)
 
     if settings.is_multi_tariff_enabled():
-        sub_id = None
-        parts = (callback.data or "").split(":")
-        if len(parts) >= 2:
-            try:
-                sub_id = int(parts[-1])
-            except (ValueError, TypeError):
-                pass
+        sub_id = subscription_id
+        if sub_id is None:
+            parts = (callback.data or '').split(':')
+            if len(parts) >= 2:
+                try:
+                    sub_id = int(parts[-1])
+                except (ValueError, TypeError):
+                    pass
         if sub_id:
             subscription = await get_subscription_by_id_for_user(db, sub_id, db_user.id)
         else:
@@ -2624,6 +2675,7 @@ async def show_tariff_extend(
             db_user.language,
             db_user=db_user,
             subscription_device_limit=actual_device_limit,
+            subscription_id=subscription.id,
         ),
         parse_mode="HTML",
     )
@@ -2639,25 +2691,30 @@ async def select_tariff_extend_period(
 ):
     """Обрабатывает выбор периода для продления."""
     texts = get_texts(db_user.language)
-    parts = callback.data.split(":")
-    tariff_id = int(parts[1])
+    # tariff_extend:{sub_id}:{tariff_id}[:{period}]
+    parts = callback.data.split(':')
+    sub_id = int(parts[1])
+    tariff_id = int(parts[2])
 
-    # Кнопка «Назад» шлёт tariff_extend:{id} без периода — показываем экран выбора периода
-    if len(parts) < 3:
-        await show_tariff_extend(callback, db_user, db)
+    # Кнопка «Назад» шлёт tariff_extend:{sub_id}:{tariff_id} без периода — экран выбора периода
+    if len(parts) < 4:
+        await show_tariff_extend(callback, db_user, db, subscription_id=sub_id)
         return
 
-    period = int(parts[2])
+    period = int(parts[3])
 
     tariff = await get_tariff_by_id(db, tariff_id)
     if not tariff or not tariff.is_active:
         await callback.answer("Тариф недоступен", show_alert=True)
         return
 
-    subscription, _sub_id = await _resolve_subscription(callback, db_user, db, state)
-    actual_device_limit = (
-        subscription.device_limit if subscription else None
-    ) or tariff.device_limit
+    # Грузим подписку СТРОГО по id из callback + user_id, без резолвера (он принял
+    # бы хвостовой период за id подписки — см. issue #3012).
+    subscription = await get_subscription_by_id_for_user(db, sub_id, db_user.id)
+    if not subscription:
+        await callback.answer('Подписка не найдена', show_alert=True)
+        return
+    actual_device_limit = subscription.device_limit or tariff.device_limit
 
     # Calculate price via PricingEngine (per-category discounts: period + devices)
     from app.services.pricing_engine import pricing_engine
@@ -2688,19 +2745,17 @@ async def select_tariff_extend_period(
             discount_text = f"\n🎁 Скидка: {discount_percent}% (-{format_price_kopeks(total_discount)})"
 
         await callback.message.edit_text(
-            f"✅ <b>Подтверждение продления</b>\n\n"
-            f"📦 Тариф: <b>{html.escape(tariff.name)}</b>\n"
-            f"📊 Трафик: {traffic}\n"
-            f"📱 Устройств: {actual_device_limit}\n"
-            f"📅 Период: {format_period(period)}\n"
-            f"{discount_text}\n"
-            f"💰 <b>К оплате: {format_price_kopeks(final_price)}</b>\n\n"
-            f"💳 Ваш баланс: {format_price_kopeks(user_balance)}\n"
-            f"После оплаты: {format_price_kopeks(user_balance - final_price)}",
-            reply_markup=get_tariff_extend_confirm_keyboard(
-                tariff_id, period, db_user.language
-            ),
-            parse_mode="HTML",
+            f'✅ <b>Подтверждение продления</b>\n\n'
+            f'📦 Тариф: <b>{html.escape(tariff.name)}</b>\n'
+            f'📊 Трафик: {traffic}\n'
+            f'📱 Устройств: {actual_device_limit}\n'
+            f'📅 Период: {format_period(period)}\n'
+            f'{discount_text}\n'
+            f'💰 <b>К оплате: {format_price_kopeks(final_price)}</b>\n\n'
+            f'💳 Ваш баланс: {format_price_kopeks(user_balance)}\n'
+            f'После оплаты: {format_price_kopeks(user_balance - final_price)}',
+            reply_markup=get_tariff_extend_confirm_keyboard(subscription.id, tariff_id, period, db_user.language),
+            parse_mode='HTML',
         )
     else:
         missing = final_price - user_balance
@@ -2766,9 +2821,17 @@ async def confirm_tariff_extend(
     state: FSMContext,
 ):
     """Подтверждает продление по тарифу."""
-    parts = callback.data.split(":")
-    tariff_id = int(parts[1])
-    period = int(parts[2])
+    # tariff_ext_confirm:{sub_id}:{tariff_id}:{period}
+    parts = callback.data.split(':')
+    try:
+        sub_id = int(parts[1])
+        tariff_id = int(parts[2])
+        period = int(parts[3])
+    except (IndexError, ValueError):
+        # Устаревшая/обрезанная кнопка (старый формат без subscription_id) — НЕ
+        # списываем деньги, просим начать заново (issue #3012).
+        await callback.answer('Сессия устарела, откройте продление заново', show_alert=True)
+        return
 
     tariff = await get_tariff_by_id(db, tariff_id)
     if not tariff or not tariff.is_active:
@@ -2780,11 +2843,26 @@ async def confirm_tariff_extend(
         await callback.answer("Период недоступен", show_alert=True)
         return
 
-    subscription, _sub_id = await _resolve_subscription(callback, db_user, db, state)
+    # Грузим подписку СТРОГО по id из callback + user_id (см. issue #3012: резолвер
+    # по хвосту callback принимал период за id подписки и продлевал чужую).
+    subscription = await get_subscription_by_id_for_user(db, sub_id, db_user.id)
     if not subscription:
         await callback.answer("Подписка не найдена", show_alert=True)
         return
 
+    # Защита от рассинхрона до списания: продлеваемая подписка должна
+    # соответствовать тарифу из callback.
+    if subscription.tariff_id and subscription.tariff_id != tariff_id:
+        logger.warning(
+            'tariff_ext_confirm: подписка не соответствует тарифу из callback — отмена',
+            subscription_id=sub_id,
+            subscription_tariff_id=subscription.tariff_id,
+            callback_tariff_id=tariff_id,
+            user_id=db_user.id,
+        )
+        await callback.answer('Несоответствие подписки и тарифа, откройте продление заново', show_alert=True)
+        return
+        
     actual_device_limit = subscription.device_limit or tariff.device_limit
 
     from app.database.crud.user import lock_user_for_pricing
@@ -3169,7 +3247,7 @@ async def show_tariff_switch_list(
     await state.clear()
 
     # Проверяем наличие активной подписки
-    subscription, _sub_id = await _resolve_subscription(callback, db_user, db, state)
+    subscription, _sub_id = await _resolve_switch_subscription(callback, db_user, db, state)
     if not subscription:
         return
 
@@ -3311,7 +3389,7 @@ async def select_tariff_switch(
         return
 
     # Проверяем разрешение на смену в данном направлении
-    current_subscription_sw, _sw_sub_id_check = await _resolve_subscription(callback, db_user, db, state)
+    current_subscription_sw, _sw_sub_id_check = await _resolve_switch_subscription(callback, db_user, db, state)
     if current_subscription_sw and current_subscription_sw.tariff_id:
         cur_tariff_sw = await get_tariff_by_id(db, current_subscription_sw.tariff_id)
         if cur_tariff_sw:
@@ -3346,10 +3424,8 @@ async def select_tariff_switch(
         user_balance = db_user.balance_kopeks or 0
 
         # Проверяем текущую подписку на оставшиеся дни (switched FROM, not TO)
-        current_subscription, _sw_sub_id = await _resolve_subscription(
-            callback, db_user, db, state
-        )
-        days_warning = ""
+        current_subscription, _sw_sub_id = await _resolve_switch_subscription(callback, db_user, db, state)
+        days_warning = ''
         if current_subscription and current_subscription.end_date:
             remaining = current_subscription.end_date - datetime.now(UTC)
             remaining_days = max(0, remaining.days)
@@ -3494,9 +3570,7 @@ async def select_tariff_switch_period(
             current_tariff_name = html.escape(current_tariff.name)
 
     # Получаем текущую подписку (switched FROM, not TO) для расчёта оставшегося времени
-    subscription, _sw_period_sub_id = await _resolve_subscription(
-        callback, db_user, db, state
-    )
+    subscription, _sw_period_sub_id = await _resolve_switch_subscription(callback, db_user, db, state)
     if subscription and subscription.end_date:
         max(0, (subscription.end_date - datetime.now(UTC)).days)
 
@@ -3574,9 +3648,7 @@ async def confirm_tariff_switch(
     db_user = await lock_user_for_pricing(db, db_user.id)
 
     # Проверяем наличие подписки (switched FROM — resolved via FSM state)
-    subscription, _sw_confirm_sub_id = await _resolve_subscription(
-        callback, db_user, db, state
-    )
+    subscription, _sw_confirm_sub_id = await _resolve_switch_subscription(callback, db_user, db, state)
     if not subscription:
         await callback.answer('У вас нет активной подписки', show_alert=True)
         return
@@ -3871,7 +3943,7 @@ async def confirm_daily_tariff_switch(
         return
 
     # Проверяем наличие подписки — ищем подписку FROM (текущую), не TO (новый тариф)
-    subscription, _sub_id = await _resolve_subscription(callback, db_user, db, state)
+    subscription, _sub_id = await _resolve_switch_subscription(callback, db_user, db, state)
     if not subscription:
         await callback.answer("У вас нет активной подписки", show_alert=True)
         return
@@ -4317,7 +4389,7 @@ async def show_instant_switch_list(
     await state.clear()
 
     # Проверяем наличие активной подписки
-    subscription, _sub_id = await _resolve_subscription(callback, db_user, db, state)
+    subscription, _sub_id = await _resolve_switch_subscription(callback, db_user, db, state)
     if not subscription:
         return
 
@@ -4453,9 +4525,7 @@ async def preview_instant_switch(
     remaining_days = data.get("remaining_days", 0)
 
     # Resolve the subscription being switched FROM (via FSM state active_subscription_id)
-    subscription, _isw_sub_id = await _resolve_subscription(
-        callback, db_user, db, state
-    )
+    subscription, _isw_sub_id = await _resolve_switch_subscription(callback, db_user, db, state)
     if not subscription or not subscription.tariff_id:
         await callback.answer("Подписка не найдена", show_alert=True)
         return
@@ -4639,9 +4709,7 @@ async def confirm_instant_switch(
         return
 
     # Проверяем подписку (switched FROM — resolved via FSM state)
-    subscription, _isw_confirm_sub_id = await _resolve_subscription(
-        callback, db_user, db, state
-    )
+    subscription, _isw_confirm_sub_id = await _resolve_switch_subscription(callback, db_user, db, state)
     if not subscription:
         await callback.answer("Подписка не найдена", show_alert=True)
         return
@@ -5120,6 +5188,9 @@ async def return_to_saved_tariff_cart(
             original_price = int(total_price / (1 - discount_percent / 100))
             discount_text = f"\n🎁 Скидка: {discount_percent}% (-{format_price_kopeks(original_price - total_price)})"
 
+        # subscription_id обязателен в callback продления (issue #3012), берём из корзины
+        _extend_sub_id = cart_data.get('subscription_id')
+
         await callback.message.edit_text(
             f"✅ <b>Подтверждение продления</b>\n\n"
             f"📦 Тариф: <b>{html.escape(tariff.name)}</b>\n"
@@ -5134,13 +5205,13 @@ async def return_to_saved_tariff_cart(
                 inline_keyboard=[
                     [
                         InlineKeyboardButton(
-                            text="✅ Подтвердить продление",
-                            callback_data=f"tariff_ext_confirm:{tariff_id}:{period}",
+                            text='✅ Подтвердить продление',
+                            callback_data=f'tariff_ext_confirm:{_extend_sub_id}:{tariff_id}:{period}',
                         )
                     ],
                     [
                         InlineKeyboardButton(
-                            text=texts.BACK, callback_data=f"tariff_extend:{tariff_id}"
+                            text=texts.BACK, callback_data=f'tariff_extend:{_extend_sub_id}:{tariff_id}'
                         )
                     ],
                 ]

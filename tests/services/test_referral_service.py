@@ -206,6 +206,11 @@ async def test_second_small_topup_uses_recurring_tier_not_first_payment_percent(
     monkeypatch.setattr(referral_service, 'get_commission_payment_count', AsyncMock(return_value=1))
     monkeypatch.setattr(referral_service, 'get_referral_reward_payment_count', AsyncMock(return_value=1))
     monkeypatch.setattr(referral_service, 'get_paid_referrals_count', AsyncMock(return_value=12))
+    monkeypatch.setattr(
+        referral_service,
+        '_get_referral_reward_mode',
+        AsyncMock(return_value='balance_commission'),
+    )
 
     monkeypatch.setattr(referral_service.settings, 'REFERRAL_MINIMUM_TOPUP_KOPEKS', 20000)
     monkeypatch.setattr(referral_service.settings, 'REFERRAL_FIRST_TOPUP_BONUS_KOPEKS', 5000)
@@ -296,7 +301,7 @@ async def test_process_referral_registration_captures_referral_mode(monkeypatch)
 
     db = SimpleNamespace(
         commit=AsyncMock(),
-        execute=AsyncMock(),
+        execute=AsyncMock(return_value=SimpleNamespace(scalar_one_or_none=lambda: None)),
     )
 
     monkeypatch.setattr(referral_service, 'get_user_by_id', AsyncMock(side_effect=[new_user, referrer]))
@@ -334,7 +339,7 @@ async def test_process_referral_registration_traffic_mode_skips_pending_earning(
 
     db = SimpleNamespace(
         commit=AsyncMock(),
-        execute=AsyncMock(),
+        execute=AsyncMock(return_value=SimpleNamespace(scalar_one_or_none=lambda: None)),
     )
 
     monkeypatch.setattr(referral_service, 'get_user_by_id', AsyncMock(side_effect=[new_user, referrer]))
@@ -352,9 +357,57 @@ async def test_process_referral_registration_traffic_mode_skips_pending_earning(
     result = await referral_service.process_referral_registration(db, new_user.id, referrer.id, bot=SimpleNamespace())
 
     assert result is True
+    db.commit.assert_awaited_once()
     create_earning_mock.assert_not_awaited()
     assert send_notification_mock.await_count == 2
     assert all('пополн' not in call.args[2].lower() for call in send_notification_mock.await_args_list)
+
+
+async def test_process_referral_registration_existing_attribution_is_idempotent(monkeypatch):
+    new_user = SimpleNamespace(
+        id=1,
+        telegram_id=101,
+        full_name='Test User',
+        referred_by_id=2,
+        referral_code='REF1',
+    )
+    referrer = SimpleNamespace(
+        id=2,
+        telegram_id=202,
+        full_name='Referrer',
+        referral_reward_mode='traffic_reward',
+    )
+
+    db = SimpleNamespace(
+        commit=AsyncMock(),
+        execute=AsyncMock(),
+    )
+
+    monkeypatch.setattr(referral_service, 'get_user_by_id', AsyncMock(side_effect=[new_user, referrer]))
+    monkeypatch.setattr(
+        referral_service,
+        'get_referral_attribution_by_referral_id',
+        AsyncMock(return_value=SimpleNamespace(mode='traffic_reward')),
+    )
+    capture_mock = AsyncMock()
+    monkeypatch.setattr(
+        referral_service.referral_traffic_reward_service,
+        'capture_referral_attribution',
+        capture_mock,
+    )
+    create_earning_mock = AsyncMock()
+    monkeypatch.setattr(referral_service, 'create_referral_earning', create_earning_mock)
+    send_notification_mock = AsyncMock()
+    monkeypatch.setattr(referral_service, 'send_referral_notification', send_notification_mock)
+
+    result = await referral_service.process_referral_registration(db, new_user.id, referrer.id, bot=SimpleNamespace())
+
+    assert result is True
+    db.execute.assert_not_awaited()
+    db.commit.assert_not_awaited()
+    capture_mock.assert_not_awaited()
+    create_earning_mock.assert_not_awaited()
+    send_notification_mock.assert_not_awaited()
 
 
 async def test_process_referral_topup_skips_when_balance_commission_disabled(monkeypatch):
@@ -425,6 +478,8 @@ async def test_legacy_referral_mode_does_not_use_referrals_own_inviter_mode(monk
     monkeypatch.setattr(referral_service, 'get_referral_attribution_by_referral_id', AsyncMock(return_value=None))
     monkeypatch.setattr(referral_service, 'get_user_campaign_id', AsyncMock(return_value=None))
     monkeypatch.setattr(referral_service, 'get_effective_referral_commission_percent', lambda _u: 10)
+    monkeypatch.setattr(referral_service, 'get_referral_reward_payment_count', AsyncMock(return_value=0))
+    monkeypatch.setattr(referral_service, 'calculate_referral_commission_percent', AsyncMock(return_value=10))
     add_user_balance_mock = AsyncMock(return_value=True)
     monkeypatch.setattr(referral_service, 'add_user_balance', add_user_balance_mock)
     monkeypatch.setattr(referral_service, 'create_referral_earning', AsyncMock())

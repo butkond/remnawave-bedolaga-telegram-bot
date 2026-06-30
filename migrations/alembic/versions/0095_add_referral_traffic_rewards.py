@@ -1,8 +1,8 @@
 """add referral traffic rewards
 
-Revision ID: 0053
-Revises: 0052
-Create Date: 2026-06-28
+Revision ID: 0095
+Revises: 0094
+Create Date: 2026-06-30
 """
 
 from typing import Sequence, Union
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 from alembic import op
 
 
-revision: str = '0053'
-down_revision: Union[str, None] = '0052'
+revision: str = '0095'
+down_revision: Union[str, None] = '0094'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

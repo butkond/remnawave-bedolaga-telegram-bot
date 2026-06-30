@@ -573,6 +573,16 @@ async def process_referral_registration(db: AsyncSession, new_user_id: int, refe
             logger.error('Пользователь не привязан к рефереру', new_user_id=new_user_id, referrer_id=referrer_id)
             return False
 
+        existing_attribution = await get_referral_attribution_by_referral_id(db, new_user_id)
+        if existing_attribution is not None:
+            logger.info(
+                'Referral registration attribution already recorded, skipping duplicate',
+                new_user_id=new_user_id,
+                referrer_id=referrer_id,
+                reward_mode=existing_attribution.mode,
+            )
+            return True
+
         # Cross-session de-dup. Bot and cabinet run on separate
         # ``AsyncSessionLocal`` instances; the per-session idempotency
         # guard in ``attach_referrer_if_missing`` is not enough on its
@@ -626,6 +636,8 @@ async def process_referral_registration(db: AsyncSession, new_user_id: int, refe
                         reason='referral_registration_pending',
                         campaign_id=campaign_id,
                     )
+            else:
+                await db.commit()
         except _IntegrityError:
             # Lost the race against a concurrent session AFTER our
             # SELECT but BEFORE our commit — the unique index caught it.

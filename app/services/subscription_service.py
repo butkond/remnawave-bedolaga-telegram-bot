@@ -15,6 +15,7 @@ from app.external.remnawave_api import RemnaWaveAPI, RemnaWaveAPIError, RemnaWav
 from app.utils.subscription_utils import (
     resolve_hwid_device_limit_for_payload,
 )
+from app.utils.happ_crypto import create_happ_crypto_link
 
 
 logger = structlog.get_logger(__name__)
@@ -212,7 +213,11 @@ class SubscriptionService:
 
                 subscription.remnawave_short_uuid = updated_user.short_uuid
                 subscription.subscription_url = updated_user.subscription_url
-                subscription.subscription_crypto_link = updated_user.happ_crypto_link
+                generated_link = create_happ_crypto_link(updated_user.subscription_url)
+                if not updated_user.happ_crypto_link and not generated_link:
+                    logger.warning(f"Failed to generate crypto link for url: {updated_user.subscription_url}")
+                
+                subscription.subscription_crypto_link = updated_user.happ_crypto_link or generated_link
                 subscription.remnawave_uuid = updated_user.uuid
                 # Legacy field — keep in sync for single-mode backward compat
                 if not settings.is_multi_tariff_enabled():
@@ -520,7 +525,11 @@ class SubscriptionService:
                         )
 
                 subscription.subscription_url = updated_user.subscription_url
-                subscription.subscription_crypto_link = updated_user.happ_crypto_link
+                generated_link = create_happ_crypto_link(updated_user.subscription_url)
+                if not updated_user.happ_crypto_link and not generated_link:
+                    logger.warning(f"Failed to generate crypto link for url: {updated_user.subscription_url}")
+                
+                subscription.subscription_crypto_link = updated_user.happ_crypto_link or generated_link
                 await db.commit()
 
                 status_text = 'активным' if is_actually_active else 'истёкшим'
@@ -738,7 +747,11 @@ class SubscriptionService:
 
                 subscription.remnawave_short_uuid = updated_user.short_uuid
                 subscription.subscription_url = updated_user.subscription_url
-                subscription.subscription_crypto_link = updated_user.happ_crypto_link
+                generated_link = create_happ_crypto_link(updated_user.subscription_url)
+                if not updated_user.happ_crypto_link and not generated_link:
+                    logger.warning(f"Failed to generate crypto link for url: {updated_user.subscription_url}")
+                
+                subscription.subscription_crypto_link = updated_user.happ_crypto_link or generated_link
                 await db.commit()
 
                 logger.info('✅ Обновлена ссылка подписки', _format_user_log=self._format_user_log(user))
@@ -1116,7 +1129,11 @@ class SubscriptionService:
 
                         # Сохраняем в памяти — commit будет после gather
                         sub.subscription_url = updated_user.subscription_url
-                        sub.subscription_crypto_link = updated_user.happ_crypto_link
+                        generated_link = create_happ_crypto_link(updated_user.subscription_url)
+                        if not updated_user.happ_crypto_link and not generated_link:
+                            logger.warning(f"Failed to generate crypto link for url: {updated_user.subscription_url}")
+                        
+                        subscription.subscription_crypto_link = updated_user.happ_crypto_link or generated_link
                         return True
 
                     except Exception as e:

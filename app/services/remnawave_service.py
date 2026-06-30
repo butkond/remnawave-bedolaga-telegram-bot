@@ -39,6 +39,7 @@ from app.utils.subscription_utils import (
     device_limit_needs_heal,
     resolve_hwid_device_limit_for_payload,
 )
+from app.utils.happ_crypto import create_happ_crypto_link
 from app.utils.timezone import get_local_timezone
 
 
@@ -1435,7 +1436,7 @@ class RemnaWaveService:
                             'usedTrafficBytes': user_obj.used_traffic_bytes,
                             'hwidDeviceLimit': user_obj.hwid_device_limit,
                             'subscriptionUrl': user_obj.subscription_url,
-                            'subscriptionCryptoLink': user_obj.happ_crypto_link,
+                            'subscriptionCryptoLink': user_obj.happ_crypto_link or create_happ_crypto_link(user_obj.subscription_url),
                             'activeInternalSquads': user_obj.active_internal_squads,
                         }
                         panel_users.append(user_dict)
@@ -1935,7 +1936,7 @@ class RemnaWaveService:
                                 'trafficLimitBytes': user_obj.traffic_limit_bytes,
                                 'hwidDeviceLimit': user_obj.hwid_device_limit,
                                 'subscriptionUrl': user_obj.subscription_url,
-                                'subscriptionCryptoLink': user_obj.happ_crypto_link,
+                                'subscriptionCryptoLink': user_obj.happ_crypto_link or create_happ_crypto_link(user_obj.subscription_url),
                                 'activeInternalSquads': user_obj.active_internal_squads,
                             }
                         )
@@ -2040,7 +2041,11 @@ class RemnaWaveService:
                     if sub_url and subscription.subscription_url != sub_url:
                         subscription.subscription_url = sub_url
 
-                    crypto_link = panel_user.get('subscriptionCryptoLink')
+                    crypto_link = (
+                        panel_user.get('subscriptionCryptoLink')
+                        or (panel_user.get('happ') or {}).get('cryptoLink', '')
+                        or create_happ_crypto_link(panel_user.get('subscriptionUrl', ''))
+                    )
                     if crypto_link and subscription.subscription_crypto_link != crypto_link:
                         subscription.subscription_crypto_link = crypto_link
 
@@ -2123,7 +2128,9 @@ class RemnaWaveService:
                 'remnawave_short_uuid': panel_user.get('shortUuid'),
                 'subscription_url': panel_user.get('subscriptionUrl', ''),
                 'subscription_crypto_link': (
-                    panel_user.get('subscriptionCryptoLink') or (panel_user.get('happ') or {}).get('cryptoLink', '')
+                    panel_user.get('subscriptionCryptoLink')
+                    or (panel_user.get('happ') or {}).get('cryptoLink', '')
+                    or create_happ_crypto_link(panel_user.get('subscriptionUrl', ''))
                 ),
             }
 
@@ -2149,7 +2156,9 @@ class RemnaWaveService:
                     remnawave_short_uuid=panel_user.get('shortUuid'),
                     subscription_url=panel_user.get('subscriptionUrl', ''),
                     subscription_crypto_link=(
-                        panel_user.get('subscriptionCryptoLink') or (panel_user.get('happ') or {}).get('cryptoLink', '')
+                        panel_user.get('subscriptionCryptoLink')
+                        or (panel_user.get('happ') or {}).get('cryptoLink', '')
+                        or create_happ_crypto_link(panel_user.get('subscriptionUrl', ''))
                     ),
                 )
                 logger.info('✅ Подготовлена базовая подписка для пользователя', telegram_id=user.telegram_id)
@@ -2302,8 +2311,10 @@ class RemnaWaveService:
             if panel_url and subscription.subscription_url != panel_url:
                 subscription.subscription_url = panel_url
 
-            panel_crypto_link = panel_user.get('subscriptionCryptoLink') or (panel_user.get('happ') or {}).get(
-                'cryptoLink', ''
+            panel_crypto_link = (
+                panel_user.get('subscriptionCryptoLink')
+                or (panel_user.get('happ') or {}).get('cryptoLink', '')
+                or create_happ_crypto_link(panel_user.get('subscriptionUrl', ''))
             )
             if panel_crypto_link and subscription.subscription_crypto_link != panel_crypto_link:
                 subscription.subscription_crypto_link = panel_crypto_link

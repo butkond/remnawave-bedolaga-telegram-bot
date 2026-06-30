@@ -2493,7 +2493,7 @@ class ReferralAttribution(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     referral_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
-    referrer_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    referrer_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     referral_code = Column(String(20), nullable=True)
     mode = Column(String(50), nullable=False)
     mode_captured_at = Column(AwareDateTime(), nullable=False, default=func.now())
@@ -2533,7 +2533,7 @@ class ReferralTrafficQualification(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    referrer_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    referrer_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     referral_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
     subscription_id = Column(Integer, ForeignKey('subscriptions.id', ondelete='SET NULL'), nullable=True)
     remnawave_uuid = Column(String(255), nullable=True, index=True)

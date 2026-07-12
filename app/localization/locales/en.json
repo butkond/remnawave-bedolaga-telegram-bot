@@ -1965,5 +1965,14 @@
   "ADMIN_USER_REFERRALS_UPDATED": "✅ The referral list has been updated.",
   "ADMIN_USERS_FILTER_POTENTIAL_CUSTOMERS_TITLE": "💰 Potential customers",
   "CHANGE_TARIFF_BUTTON": "📦 Plan",
-  "BUY_TARIFF_BUTTON": "📦 Buy a plan"
+  "BUY_TARIFF_BUTTON": "📦 Buy a plan",
+  "REFERRAL_TRAFFIC_REWARD_GRANTED": "🎁 <b>Referral reward granted!</b>\n\nYour invited users have started using the VPN.\nSubscription extended by <b>{reward_days} days</b>.\n\nLatest counted referral: <b>{referral_name}</b>",
+  "REFERRAL_ACTIVE_MODE": "• Active system: <b>{mode}</b>",
+  "REFERRAL_REWARD_TRAFFIC": "• For {required} referrals who connect to VPN for the first time: <b>{days} days</b> of subscription",
+  "REFERRAL_MODE_BALANCE_LABEL": "top-up rewards",
+  "REFERRAL_MODE_TRAFFIC_LABEL": "free days for connections",
+  "REFERRAL_MODE_BALANCE_BUTTON": "💰 Top-ups",
+  "REFERRAL_MODE_TRAFFIC_BUTTON": "🎁 Connections",
+  "REFERRAL_MODE_NOT_AVAILABLE": "This mode is currently unavailable",
+  "REFERRAL_MODE_UPDATED": "Referral system changed: {mode}"
 }

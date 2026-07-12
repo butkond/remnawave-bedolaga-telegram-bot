@@ -1556,6 +1556,13 @@ class RemnaWaveWebhookService:
         self, db: AsyncSession, user: User, subscription: Subscription | None, data: dict
     ) -> None:
         logger.info('Webhook: user first VPN connection', user_id=user.id)
+        try:
+            from app.services.referral_traffic_reward_service import process_first_connected
+
+            await process_first_connected(db, user=user, subscription=subscription, data=data, bot=self.bot)
+        except Exception as exc:
+            logger.error('Failed to process referral first-connected reward', user_id=user.id, error=exc)
+
         await self._notify_user(
             user,
             'WEBHOOK_SUB_FIRST_CONNECTED',

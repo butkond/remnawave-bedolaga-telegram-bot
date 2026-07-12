@@ -1645,5 +1645,14 @@
     "WEBHOOK_DEVICE_DELETED": "📱 <b>设备已移除</b>\n\n设备已从订阅{tariff_label}中移除：<code>{device}</code>",
     "WEBHOOK_CLOSE_BUTTON": "✖️ 关闭",
     "BALANCE_TOPPED_UP_CART_SUFFICIENT": "✅ 余额已充值 {amount}！\n\n💰 当前余额：{balance}\n\n🛒 您有一个已保存的购物车，金额为 {cart_total}\n余额足够完成订购。",
-    "BALANCE_TOPPED_UP_CART_INSUFFICIENT": "✅ 余额已充值 {amount}！\n\n💰 当前余额：{balance}\n\n🛒 您有一个已保存的购物车，金额为 {cart_total}\n还差：{missing}"
+    "BALANCE_TOPPED_UP_CART_INSUFFICIENT": "✅ 余额已充值 {amount}！\n\n💰 当前余额：{balance}\n\n🛒 您有一个已保存的购物车，金额为 {cart_total}\n还差：{missing}",
+    "REFERRAL_TRAFFIC_REWARD_GRANTED": "🎁 <b>Referral reward granted!</b>\n\nYour invited users have started using the VPN.\nSubscription extended by <b>{reward_days} days</b>.\n\nLatest counted referral: <b>{referral_name}</b>",
+    "REFERRAL_ACTIVE_MODE": "• Active system: <b>{mode}</b>",
+    "REFERRAL_REWARD_TRAFFIC": "• For {required} referrals who connect to VPN for the first time: <b>{days} days</b> of subscription",
+    "REFERRAL_MODE_BALANCE_LABEL": "top-up rewards",
+    "REFERRAL_MODE_TRAFFIC_LABEL": "free days for connections",
+    "REFERRAL_MODE_BALANCE_BUTTON": "💰 Top-ups",
+    "REFERRAL_MODE_TRAFFIC_BUTTON": "🎁 Connections",
+    "REFERRAL_MODE_NOT_AVAILABLE": "This mode is currently unavailable",
+    "REFERRAL_MODE_UPDATED": "Referral system changed: {mode}"
 }

@@ -1647,5 +1647,14 @@
   "WEBHOOK_USER_NOT_CONNECTED": "📡 <b>Ви ще не підключились</b>\n\nВаша підписка{tariff_label} активна, але VPN-з'єднання не було встановлено. Підключіться, щоб почати користуватися.",
   "WEBHOOK_DEVICE_ADDED": "📱 <b>Новий пристрій</b>\n\nДо підписки{tariff_label} підключено новий пристрій: <code>{device}</code>",
   "WEBHOOK_DEVICE_DELETED": "📱 <b>Пристрій видалено</b>\n\nПристрій відключено від підписки{tariff_label}: <code>{device}</code>",
-  "WEBHOOK_CLOSE_BUTTON": "✖️ Закрити"
+  "WEBHOOK_CLOSE_BUTTON": "✖️ Закрити",
+  "REFERRAL_TRAFFIC_REWARD_GRANTED": "🎁 <b>Referral reward granted!</b>\n\nYour invited users have started using the VPN.\nSubscription extended by <b>{reward_days} days</b>.\n\nLatest counted referral: <b>{referral_name}</b>",
+  "REFERRAL_ACTIVE_MODE": "• Active system: <b>{mode}</b>",
+  "REFERRAL_REWARD_TRAFFIC": "• For {required} referrals who connect to VPN for the first time: <b>{days} days</b> of subscription",
+  "REFERRAL_MODE_BALANCE_LABEL": "top-up rewards",
+  "REFERRAL_MODE_TRAFFIC_LABEL": "free days for connections",
+  "REFERRAL_MODE_BALANCE_BUTTON": "💰 Top-ups",
+  "REFERRAL_MODE_TRAFFIC_BUTTON": "🎁 Connections",
+  "REFERRAL_MODE_NOT_AVAILABLE": "This mode is currently unavailable",
+  "REFERRAL_MODE_UPDATED": "Referral system changed: {mode}"
 }

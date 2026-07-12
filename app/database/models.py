@@ -1904,6 +1904,7 @@ class User(Base):
     has_had_paid_subscription = Column(Boolean, default=False, nullable=False)
     referred_by_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
     referral_code = Column(String(20), unique=True, nullable=True)
+    referral_reward_mode = Column(String(32), nullable=True)
     created_at = Column(AwareDateTime(), default=func.now())
     updated_at = Column(AwareDateTime(), default=func.now(), onupdate=func.now())
     last_activity = Column(AwareDateTime(), default=func.now())
@@ -2502,6 +2503,75 @@ class ReferralEarning(Base):
     @property
     def amount_rubles(self) -> float:
         return self.amount_kopeks / 100
+
+
+class ReferralRewardMode(StrEnum):
+    """Referral reward attribution modes."""
+
+    BALANCE_COMMISSION = 'balance_commission'
+    TRAFFIC_REWARD = 'traffic_reward'
+
+
+class ReferralAttribution(Base):
+    __tablename__ = 'referral_attributions'
+    __table_args__ = (
+        UniqueConstraint('referral_id', name='uq_referral_attributions_referral'),
+        Index('idx_referral_attributions_referrer', 'referrer_id'),
+        Index('idx_referral_attributions_mode', 'mode'),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    referral_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    referrer_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    referral_code = Column(String(64), nullable=True)
+    mode = Column(String(32), nullable=False, default=ReferralRewardMode.BALANCE_COMMISSION.value)
+    mode_captured_at = Column(AwareDateTime(), nullable=False, default=func.now())
+    created_at = Column(AwareDateTime(), default=func.now())
+    updated_at = Column(AwareDateTime(), default=func.now(), onupdate=func.now())
+
+    referral = relationship('User', foreign_keys=[referral_id])
+    referrer = relationship('User', foreign_keys=[referrer_id])
+
+
+class ReferralTrafficQualification(Base):
+    __tablename__ = 'referral_traffic_qualifications'
+    __table_args__ = (
+        UniqueConstraint('referral_id', name='uq_referral_traffic_qualifications_referral'),
+        Index('idx_referral_traffic_qualifications_referrer', 'referrer_id'),
+        Index('idx_referral_traffic_qualifications_uuid', 'remnawave_uuid'),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    referrer_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    referral_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    subscription_id = Column(Integer, ForeignKey('subscriptions.id', ondelete='SET NULL'), nullable=True)
+    remnawave_uuid = Column(String(255), nullable=False)
+    source_event = Column(String(64), nullable=False, default='user.first_connected')
+    qualified_at = Column(AwareDateTime(), nullable=False, default=func.now())
+    created_at = Column(AwareDateTime(), default=func.now())
+
+    referrer = relationship('User', foreign_keys=[referrer_id])
+    referral = relationship('User', foreign_keys=[referral_id])
+    subscription = relationship('Subscription')
+
+
+class ReferralTrafficRewardGrant(Base):
+    __tablename__ = 'referral_traffic_reward_grants'
+    __table_args__ = (
+        UniqueConstraint('referrer_id', name='uq_referral_traffic_reward_grants_referrer'),
+        Index('idx_referral_traffic_reward_grants_subscription', 'subscription_id'),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    referrer_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    qualified_count_at_grant = Column(Integer, nullable=False)
+    reward_days = Column(Integer, nullable=False)
+    subscription_id = Column(Integer, ForeignKey('subscriptions.id', ondelete='SET NULL'), nullable=True)
+    granted_at = Column(AwareDateTime(), nullable=False, default=func.now())
+    created_at = Column(AwareDateTime(), default=func.now())
+
+    referrer = relationship('User', foreign_keys=[referrer_id])
+    subscription = relationship('Subscription')
 
 
 class WithdrawalRequestStatus(Enum):

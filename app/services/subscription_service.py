@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import case, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -12,13 +12,16 @@ from app.database.crud.server_squad import get_all_server_squads
 from app.database.crud.user import get_user_by_id
 from app.database.models import Subscription, SubscriptionStatus, User
 from app.external.remnawave_api import RemnaWaveAPI, RemnaWaveAPIError, RemnaWaveUser, TrafficLimitStrategy, UserStatus
+from app.utils.happ_crypto import create_happ_crypto_link
 from app.utils.subscription_utils import (
     resolve_hwid_device_limit_for_payload,
 )
-from app.utils.happ_crypto import create_happ_crypto_link
 
 
 logger = structlog.get_logger(__name__)
+
+
+BULK_EXTEND_SUBSCRIPTIONS_BATCH_SIZE = 500
 
 
 def get_traffic_reset_strategy(tariff=None):
@@ -578,12 +581,10 @@ class SubscriptionService:
         """Массово продлевает (или сокращает) подписки пользователей бота.
 
         ``days`` может быть отрицательным — тогда срок подписки сокращается, как в
-        персональном продлении. Продление в БД применяется к каждой подписке
-        отдельно (коммит на запись), синхронизация с панелью — best-effort.
+        персональном продлении. Продление в Remnawave и локальной БД применяется
+        пачками, без per-user запросов и коммитов.
         Возвращает ``{'total', 'ok', 'errors'}``.
         """
-
-        from app.database.crud.subscription import extend_subscription
 
         query = select(Subscription)
         if only_active:
@@ -593,43 +594,96 @@ class SubscriptionService:
 
         result = await db.execute(query)
         subscriptions = list(result.scalars().all())
+        subscriptions_with_uuid = [subscription for subscription in subscriptions if subscription.remnawave_uuid]
+        missing_uuid_count = len(subscriptions) - len(subscriptions_with_uuid)
 
-        stats = {'total': len(subscriptions), 'ok': 0, 'errors': 0}
+        stats = {'total': len(subscriptions), 'ok': 0, 'errors': missing_uuid_count}
         logger.info(
             'Запуск массового продления подписок',
             days=days,
             admin_id=admin_id,
             only_active=only_active,
             total=stats['total'],
+            with_remnawave_uuid=len(subscriptions_with_uuid),
+            missing_remnawave_uuid=missing_uuid_count,
         )
 
-        for subscription in subscriptions:
-            try:
-                await extend_subscription(db, subscription, days)
-            except Exception as extend_error:
-                logger.error(
-                    'Ошибка массового продления подписки (БД)',
-                    subscription_id=subscription.id,
-                    error=extend_error,
-                )
-                stats['errors'] += 1
-                try:
-                    await db.rollback()
-                except Exception:
-                    pass
-                continue
+        if missing_uuid_count:
+            logger.warning(
+                'Часть подписок пропущена при массовом продлении: нет Remnawave UUID',
+                count=missing_uuid_count,
+            )
 
-            # Синхронизация с панелью — best-effort: локальное продление уже сохранено
-            try:
-                await self.update_remnawave_user(db, subscription)
-            except Exception as panel_error:
-                logger.warning(
-                    'Не удалось синхронизировать продление с панелью',
-                    subscription_id=subscription.id,
-                    error=panel_error,
-                )
+        if not subscriptions_with_uuid:
+            logger.info(
+                'Массовое продление подписок завершено: нет подписок с Remnawave UUID',
+                days=days,
+                admin_id=admin_id,
+                total=stats['total'],
+                ok=stats['ok'],
+                errors=stats['errors'],
+            )
+            return stats
 
-            stats['ok'] += 1
+        try:
+            async with self.get_api_client() as api:
+                for start in range(0, len(subscriptions_with_uuid), BULK_EXTEND_SUBSCRIPTIONS_BATCH_SIZE):
+                    batch = subscriptions_with_uuid[start : start + BULK_EXTEND_SUBSCRIPTIONS_BATCH_SIZE]
+                    uuids = [subscription.remnawave_uuid for subscription in batch if subscription.remnawave_uuid]
+
+                    try:
+                        affected_rows = await api.bulk_extend_users_expiration_date(uuids, days)
+                    except Exception as panel_error:
+                        logger.error(
+                            'Ошибка массового продления подписок в Remnawave',
+                            days=days,
+                            batch_start=start,
+                            batch_size=len(batch),
+                            error=panel_error,
+                        )
+                        stats['errors'] += len(batch)
+                        continue
+
+                    if affected_rows != len(batch):
+                        logger.warning(
+                            'Remnawave bulk-продление затронуло не все подписки пачки, локальная БД не обновлена',
+                            days=days,
+                            batch_size=len(batch),
+                            remnawave_affected_rows=affected_rows,
+                        )
+                        stats['errors'] += len(batch)
+                        continue
+
+                    try:
+                        updated_rows = await self._bulk_apply_subscription_extension(db, batch, days)
+                    except Exception as db_error:
+                        logger.error(
+                            'Ошибка массового продления подписок в БД после успешного Remnawave bulk-запроса',
+                            days=days,
+                            batch_start=start,
+                            batch_size=len(batch),
+                            affected_rows=affected_rows,
+                            error=db_error,
+                        )
+                        stats['errors'] += len(batch)
+                        try:
+                            await db.rollback()
+                        except Exception:
+                            pass
+                        continue
+
+                    stats['ok'] += updated_rows
+                    if updated_rows != len(batch):
+                        stats['errors'] += len(batch) - updated_rows
+                        logger.warning(
+                            'DB bulk-продление затронуло не все подписки пачки',
+                            days=days,
+                            batch_size=len(batch),
+                            db_updated_rows=updated_rows,
+                        )
+        except RemnaWaveAPIError as config_error:
+            logger.error('Массовое продление невозможно: Remnawave API не настроен', error=config_error)
+            stats['errors'] += len(subscriptions_with_uuid)
 
         logger.info(
             'Массовое продление подписок завершено',
@@ -640,6 +694,61 @@ class SubscriptionService:
             errors=stats['errors'],
         )
         return stats
+
+    @staticmethod
+    async def _bulk_apply_subscription_extension(
+        db: AsyncSession,
+        subscriptions: list[Subscription],
+        days: int,
+    ) -> int:
+        if not subscriptions:
+            return 0
+
+        now = datetime.now(UTC)
+        delta = timedelta(days=days)
+        end_date_cases = []
+
+        for subscription in subscriptions:
+            end_date = subscription.end_date
+            if end_date.tzinfo is None:
+                end_date = end_date.replace(tzinfo=UTC)
+
+            if days < 0 or end_date > now:
+                new_end_date = end_date + delta
+            else:
+                new_end_date = now + delta
+
+            end_date_cases.append((Subscription.id == subscription.id, new_end_date))
+
+        subscription_ids = [subscription.id for subscription in subscriptions]
+        values = {
+            'end_date': case(*end_date_cases, else_=Subscription.end_date),
+            'updated_at': now,
+        }
+        if days > 0:
+            values['status'] = case(
+                (
+                    Subscription.status.in_(
+                        [
+                            SubscriptionStatus.EXPIRED.value,
+                            SubscriptionStatus.DISABLED.value,
+                            SubscriptionStatus.LIMITED.value,
+                            SubscriptionStatus.TRIAL.value,
+                        ]
+                    ),
+                    SubscriptionStatus.ACTIVE.value,
+                ),
+                else_=Subscription.status,
+            )
+
+        result = await db.execute(
+            update(Subscription)
+            .where(Subscription.id.in_(subscription_ids))
+            .values(**values)
+            .execution_options(synchronize_session=False)
+        )
+        await db.commit()
+        return int(result.rowcount or 0)
 
     async def _reset_user_traffic(
         self,

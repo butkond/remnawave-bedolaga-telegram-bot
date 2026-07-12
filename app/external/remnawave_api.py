@@ -692,6 +692,18 @@ class RemnaWaveAPI:
         user = self._parse_user(response['response'])
         return await self.enrich_user_with_happ_link(user)
 
+    async def bulk_extend_users_expiration_date(self, uuids: list[str], extend_days: int) -> int:
+        """Extend expiration date for multiple Remnawave users in one request."""
+        if not uuids:
+            return 0
+
+        data = {
+            'uuids': uuids,
+            'extendDays': extend_days,
+        }
+        response = await self._make_request('POST', '/api/users/bulk/extend-expiration-date', data)
+        return int(response.get('response', {}).get('affectedRows', 0))
+
     async def reset_user_traffic(self, uuid: str) -> RemnaWaveUser:
         response = await self._make_request('POST', f'/api/users/{uuid}/actions/reset-traffic')
         user = self._parse_user(response['response'])

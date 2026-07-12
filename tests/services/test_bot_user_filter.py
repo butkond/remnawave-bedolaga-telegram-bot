@@ -1,4 +1,5 @@
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -51,20 +52,29 @@ async def test_bulk_extend_subscriptions_counts(monkeypatch):
 
     service = SubscriptionService.__new__(SubscriptionService)
 
-    subs = [SimpleNamespace(id=1), SimpleNamespace(id=2), SimpleNamespace(id=3)]
+    subs = [
+        SimpleNamespace(id=1, remnawave_uuid='uuid-1'),
+        SimpleNamespace(id=2, remnawave_uuid='uuid-2'),
+        SimpleNamespace(id=3, remnawave_uuid='uuid-3'),
+    ]
     db = AsyncMock()
     result = MagicMock()
     result.scalars.return_value.all.return_value = subs
     db.execute = AsyncMock(return_value=result)
 
-    # Вторая подписка падает на этапе продления в БД -> errors += 1
-    extend_mock = AsyncMock(side_effect=[None, Exception('boom'), None])
-    monkeypatch.setattr('app.database.crud.subscription.extend_subscription', extend_mock)
-    service.update_remnawave_user = AsyncMock()
+    api = SimpleNamespace(bulk_extend_users_expiration_date=AsyncMock(side_effect=[2, 1]))
+
+    @asynccontextmanager
+    async def api_client():
+        yield api
+
+    service.get_api_client = api_client
+    service._bulk_apply_subscription_extension = AsyncMock(side_effect=[2, 1])
+    monkeypatch.setattr('app.services.subscription_service.BULK_EXTEND_SUBSCRIPTIONS_BATCH_SIZE', 2)
 
     stats = await service.bulk_extend_subscriptions(db, 30, admin_id=1)
 
-    assert stats == {'total': 3, 'ok': 2, 'errors': 1}
-    assert extend_mock.await_count == 3
-    # Панель синхронизируется только для успешно продлённых подписок
-    assert service.update_remnawave_user.await_count == 2
+    assert stats == {'total': 3, 'ok': 3, 'errors': 0}
+    assert api.bulk_extend_users_expiration_date.await_args_list[0].args == (['uuid-1', 'uuid-2'], 30)
+    assert api.bulk_extend_users_expiration_date.await_args_list[1].args == (['uuid-3'], 30)
+    assert service._bulk_apply_subscription_extension.await_count == 2

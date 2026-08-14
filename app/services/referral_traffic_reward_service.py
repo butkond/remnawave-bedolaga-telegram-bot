@@ -133,8 +133,11 @@ async def process_first_connected(
         source_event=str((data or {}).get('event') or 'user.first_connected'),
     )
     if not qualification:
-        logger.info('First-connected referral qualification skipped: qualification already exists', user_id=user_id)
-        return True
+        logger.info(
+            'First-connected referral qualification already exists, continuing reward check',
+            user_id=user_id,
+            referrer_id=referrer_id,
+        )
 
     required_referrals_count = settings.REFERRAL_TRAFFIC_REWARD_REQUIRED_REFERRALS
     reward_days = settings.REFERRAL_TRAFFIC_REWARD_DAYS

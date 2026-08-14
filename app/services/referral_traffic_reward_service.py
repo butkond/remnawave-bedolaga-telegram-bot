@@ -76,9 +76,11 @@ async def process_first_connected(
     ignored. Returns False only for a real processing failure.
     """
     if not settings.REFERRAL_TRAFFIC_REWARDS_ENABLED:
+        logger.info('First-connected referral qualification skipped: traffic rewards disabled', user_id=user.id)
         return True
 
     if not user.referred_by_id:
+        logger.info('First-connected referral qualification skipped: user has no referrer', user_id=user.id)
         return True
 
     if user.id == user.referred_by_id:
@@ -96,6 +98,12 @@ async def process_first_connected(
         return True
 
     if attribution.mode != ReferralRewardMode.TRAFFIC_REWARD.value:
+        logger.info(
+            'First-connected referral qualification skipped: attribution mode is not traffic_reward',
+            user_id=user.id,
+            referrer_id=attribution.referrer_id,
+            attribution_mode=attribution.mode,
+        )
         return True
 
     qualification_window_days = settings.REFERRAL_TRAFFIC_REWARD_QUALIFICATION_WINDOW_DAYS
@@ -117,6 +125,7 @@ async def process_first_connected(
         source_event=str((data or {}).get('event') or 'user.first_connected'),
     )
     if not qualification:
+        logger.info('First-connected referral qualification skipped: qualification already exists', user_id=user.id)
         return True
 
     required_referrals_count = settings.REFERRAL_TRAFFIC_REWARD_REQUIRED_REFERRALS
@@ -133,6 +142,11 @@ async def process_first_connected(
         return True
 
     if await get_reward_grant(db, referrer_id=attribution.referrer_id):
+        logger.info(
+            'First-connected reward skipped: referrer already has traffic reward grant',
+            referrer_id=attribution.referrer_id,
+            referral_id=user.id,
+        )
         return True
 
     referrer = await get_user_by_id(db, attribution.referrer_id)

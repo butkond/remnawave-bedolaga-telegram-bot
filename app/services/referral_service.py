@@ -724,11 +724,20 @@ async def process_referral_registration(db: AsyncSession, new_user_id: int, refe
                 bot, referrer.telegram_id, inviter_notification, user=referrer, referral_name=new_user.full_name
             )
 
-        logger.info(
-            '✅ Зарегистрирован реферал для . Бонусы будут выданы после пополнения.',
-            new_user_id=new_user_id,
-            referrer_id=referrer_id,
-        )
+        if referral_mode == ReferralRewardMode.TRAFFIC_REWARD:
+            logger.info(
+                '✅ Зарегистрирован реферал в режиме traffic_reward. Бонус будет выдан после первого VPN подключения.',
+                new_user_id=new_user_id,
+                referrer_id=referrer_id,
+                referral_mode=referral_mode.value,
+            )
+        else:
+            logger.info(
+                '✅ Зарегистрирован реферал в режиме balance_commission. Бонусы будут выданы после пополнения.',
+                new_user_id=new_user_id,
+                referrer_id=referrer_id,
+                referral_mode=referral_mode.value,
+            )
         return True
 
     except Exception as e:

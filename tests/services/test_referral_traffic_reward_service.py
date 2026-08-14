@@ -260,6 +260,8 @@ async def test_remnawave_sync_processes_first_connected_recovery(monkeypatch):
 
     service = RemnaWaveService.__new__(RemnaWaveService)
     monkeypatch.setattr('app.services.remnawave_service.settings.REFERRAL_TRAFFIC_REWARDS_ENABLED', True)
+    monkeypatch.setattr('app.services.remnawave_service.settings.REFERRAL_TRAFFIC_REWARD_NOTIFY', True)
+    monkeypatch.setattr('app.services.remnawave_service.settings.BOT_TOKEN', 'test-token')
 
     candidates = []
     user = SimpleNamespace(id=10, referred_by_id=20)
@@ -281,6 +283,20 @@ async def test_remnawave_sync_processes_first_connected_recovery(monkeypatch):
         'app.services.referral_traffic_reward_service.process_first_connected',
         process_mock,
     )
+
+    class FakeSession:
+        def __init__(self):
+            self.closed = False
+
+        async def close(self):
+            self.closed = True
+
+    class FakeBot:
+        def __init__(self):
+            self.session = FakeSession()
+
+    fake_bot = FakeBot()
+    monkeypatch.setattr('app.bot_factory.create_bot', lambda: fake_bot)
 
     recovery_db = AsyncMock()
     recovery_db.get = AsyncMock(side_effect=[user, subscription])
@@ -305,7 +321,8 @@ async def test_remnawave_sync_processes_first_connected_recovery(monkeypatch):
     _, kwargs = process_mock.call_args
     assert kwargs['user'] is user
     assert kwargs['subscription'] is subscription
-    assert kwargs['bot'] is None
+    assert kwargs['bot'] is fake_bot
+    assert fake_bot.session.closed is True
     assert kwargs['data'] == {
         'event': 'sync.first_connected_recovery',
         'uuid': 'panel-uuid',

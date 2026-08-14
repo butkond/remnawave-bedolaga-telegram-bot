@@ -385,51 +385,63 @@ class RemnaWaveService:
         if not candidates:
             return 0
 
+        from app.bot_factory import create_bot
         from app.database.database import AsyncSessionLocal
         from app.services.referral_traffic_reward_service import process_first_connected
 
-        processed = 0
-        for candidate in candidates:
-            panel_user = candidate.panel_user
-            recovery_data = {
-                'event': 'sync.first_connected_recovery',
-                'uuid': panel_user.get('uuid'),
-                'firstConnectedAt': self._get_panel_first_connected_at(panel_user),
-            }
+        bot = None
+        if settings.REFERRAL_TRAFFIC_REWARD_NOTIFY and getattr(settings, 'BOT_TOKEN', None):
             try:
-                async with AsyncSessionLocal() as recovery_db:
-                    user = await recovery_db.get(User, candidate.user_id)
-                    if not user:
-                        logger.warning(
-                            'First-connected recovery skipped: user not found',
-                            user_id=candidate.user_id,
-                            remnawave_uuid=panel_user.get('uuid'),
-                        )
-                        continue
-
-                    subscription = None
-                    if candidate.subscription_id is not None:
-                        subscription = await recovery_db.get(Subscription, candidate.subscription_id)
-
-                    ok = await process_first_connected(
-                        recovery_db,
-                        user=user,
-                        subscription=subscription,
-                        data=recovery_data,
-                        bot=None,
-                    )
+                bot = create_bot()
             except Exception as exc:
-                logger.error(
-                    'Failed to process first-connected recovery from Remnawave sync',
-                    user_id=candidate.user_id,
-                    subscription_id=candidate.subscription_id,
-                    remnawave_uuid=panel_user.get('uuid'),
-                    error=exc,
-                )
-                continue
+                logger.warning('Failed to create bot for first-connected recovery notifications', error=exc)
 
-            if ok:
-                processed += 1
+        processed = 0
+        try:
+            for candidate in candidates:
+                panel_user = candidate.panel_user
+                recovery_data = {
+                    'event': 'sync.first_connected_recovery',
+                    'uuid': panel_user.get('uuid'),
+                    'firstConnectedAt': self._get_panel_first_connected_at(panel_user),
+                }
+                try:
+                    async with AsyncSessionLocal() as recovery_db:
+                        user = await recovery_db.get(User, candidate.user_id)
+                        if not user:
+                            logger.warning(
+                                'First-connected recovery skipped: user not found',
+                                user_id=candidate.user_id,
+                                remnawave_uuid=panel_user.get('uuid'),
+                            )
+                            continue
+
+                        subscription = None
+                        if candidate.subscription_id is not None:
+                            subscription = await recovery_db.get(Subscription, candidate.subscription_id)
+
+                        ok = await process_first_connected(
+                            recovery_db,
+                            user=user,
+                            subscription=subscription,
+                            data=recovery_data,
+                            bot=bot,
+                        )
+                except Exception as exc:
+                    logger.error(
+                        'Failed to process first-connected recovery from Remnawave sync',
+                        user_id=candidate.user_id,
+                        subscription_id=candidate.subscription_id,
+                        remnawave_uuid=panel_user.get('uuid'),
+                        error=exc,
+                    )
+                    continue
+
+                if ok:
+                    processed += 1
+        finally:
+            if bot:
+                await bot.session.close()
 
         logger.info(
             'Processed first-connected recovery candidates from Remnawave sync',

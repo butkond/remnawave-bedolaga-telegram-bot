@@ -75,83 +75,91 @@ async def process_first_connected(
     Returns True when the webhook was processed successfully or intentionally
     ignored. Returns False only for a real processing failure.
     """
+    user_id = user.id
+    referred_by_id = user.referred_by_id
+    subscription_id = subscription.id if subscription else None
+
     if not settings.REFERRAL_TRAFFIC_REWARDS_ENABLED:
-        logger.info('First-connected referral qualification skipped: traffic rewards disabled', user_id=user.id)
+        logger.info('First-connected referral qualification skipped: traffic rewards disabled', user_id=user_id)
         return True
 
-    if not user.referred_by_id:
-        logger.info('First-connected referral qualification skipped: user has no referrer', user_id=user.id)
+    if not referred_by_id:
+        logger.info('First-connected referral qualification skipped: user has no referrer', user_id=user_id)
         return True
 
-    if user.id == user.referred_by_id:
-        logger.warning('Self-referral blocked in first-connected reward processing', user_id=user.id)
+    if user_id == referred_by_id:
+        logger.warning('Self-referral blocked in first-connected reward processing', user_id=user_id)
         return True
 
     remnawave_uuid = _get_remnawave_uuid(user, subscription)
     if not remnawave_uuid:
-        logger.warning('First-connected referral qualification skipped: no Remnawave UUID', user_id=user.id)
+        logger.warning('First-connected referral qualification skipped: no Remnawave UUID', user_id=user_id)
         return True
 
-    attribution = await get_referral_attribution(db, user.id)
+    attribution = await get_referral_attribution(db, user_id)
     if not attribution:
-        logger.info('First-connected referral qualification skipped: no captured attribution', user_id=user.id)
+        logger.info('First-connected referral qualification skipped: no captured attribution', user_id=user_id)
         return True
 
-    if attribution.mode != ReferralRewardMode.TRAFFIC_REWARD.value:
+    attribution_mode = attribution.mode
+    referrer_id = attribution.referrer_id
+    mode_captured_at = attribution.mode_captured_at
+
+    if attribution_mode != ReferralRewardMode.TRAFFIC_REWARD.value:
         logger.info(
             'First-connected referral qualification skipped: attribution mode is not traffic_reward',
-            user_id=user.id,
-            referrer_id=attribution.referrer_id,
-            attribution_mode=attribution.mode,
+            user_id=user_id,
+            referrer_id=referrer_id,
+            attribution_mode=attribution_mode,
         )
         return True
 
     qualification_window_days = settings.REFERRAL_TRAFFIC_REWARD_QUALIFICATION_WINDOW_DAYS
-    if _is_outside_qualification_window(attribution.mode_captured_at, qualification_window_days):
+    if _is_outside_qualification_window(mode_captured_at, qualification_window_days):
         logger.info(
             'First-connected referral qualification skipped: outside qualification window',
-            user_id=user.id,
-            referrer_id=attribution.referrer_id,
+            user_id=user_id,
+            referrer_id=referrer_id,
             window_days=qualification_window_days,
         )
         return True
 
     qualification = await create_qualification(
         db,
-        referrer_id=attribution.referrer_id,
-        referral_id=user.id,
-        subscription_id=subscription.id if subscription else None,
+        referrer_id=referrer_id,
+        referral_id=user_id,
+        subscription_id=subscription_id,
         remnawave_uuid=remnawave_uuid,
         source_event=str((data or {}).get('event') or 'user.first_connected'),
     )
     if not qualification:
-        logger.info('First-connected referral qualification skipped: qualification already exists', user_id=user.id)
+        logger.info('First-connected referral qualification skipped: qualification already exists', user_id=user_id)
         return True
 
     required_referrals_count = settings.REFERRAL_TRAFFIC_REWARD_REQUIRED_REFERRALS
     reward_days = settings.REFERRAL_TRAFFIC_REWARD_DAYS
-    qualified_count = await count_qualifications(db, referrer_id=attribution.referrer_id)
+    qualified_count = await count_qualifications(db, referrer_id=referrer_id)
     if qualified_count < required_referrals_count:
         logger.info(
             'First-connected referral qualified, reward threshold not reached yet',
-            referrer_id=attribution.referrer_id,
-            referral_id=user.id,
+            referrer_id=referrer_id,
+            referral_id=user_id,
             qualified_count=qualified_count,
             required_referrals_count=required_referrals_count,
         )
         return True
 
-    if await get_reward_grant(db, referrer_id=attribution.referrer_id):
+    if await get_reward_grant(db, referrer_id=referrer_id):
         logger.info(
             'First-connected reward skipped: referrer already has traffic reward grant',
-            referrer_id=attribution.referrer_id,
-            referral_id=user.id,
+            referrer_id=referrer_id,
+            referral_id=user_id,
         )
         return True
 
-    referrer = await get_user_by_id(db, attribution.referrer_id)
+    referrer = await get_user_by_id(db, referrer_id)
     if not referrer:
-        logger.warning('First-connected reward skipped: referrer not found', referrer_id=attribution.referrer_id)
+        logger.warning('First-connected reward skipped: referrer not found', referrer_id=referrer_id)
         return True
 
     referrer_subscription = await get_subscription_by_user_id(db, referrer.id)

@@ -385,6 +385,7 @@ class RemnaWaveService:
         if not candidates:
             return 0
 
+        from app.database.database import AsyncSessionLocal
         from app.services.referral_traffic_reward_service import process_first_connected
 
         processed = 0
@@ -396,26 +397,27 @@ class RemnaWaveService:
                 'firstConnectedAt': self._get_panel_first_connected_at(panel_user),
             }
             try:
-                user = await db.get(User, candidate.user_id)
-                if not user:
-                    logger.warning(
-                        'First-connected recovery skipped: user not found',
-                        user_id=candidate.user_id,
-                        remnawave_uuid=panel_user.get('uuid'),
+                async with AsyncSessionLocal() as recovery_db:
+                    user = await recovery_db.get(User, candidate.user_id)
+                    if not user:
+                        logger.warning(
+                            'First-connected recovery skipped: user not found',
+                            user_id=candidate.user_id,
+                            remnawave_uuid=panel_user.get('uuid'),
+                        )
+                        continue
+
+                    subscription = None
+                    if candidate.subscription_id is not None:
+                        subscription = await recovery_db.get(Subscription, candidate.subscription_id)
+
+                    ok = await process_first_connected(
+                        recovery_db,
+                        user=user,
+                        subscription=subscription,
+                        data=recovery_data,
+                        bot=None,
                     )
-                    continue
-
-                subscription = None
-                if candidate.subscription_id is not None:
-                    subscription = await db.get(Subscription, candidate.subscription_id)
-
-                ok = await process_first_connected(
-                    db,
-                    user=user,
-                    subscription=subscription,
-                    data=recovery_data,
-                    bot=None,
-                )
             except Exception as exc:
                 logger.error(
                     'Failed to process first-connected recovery from Remnawave sync',

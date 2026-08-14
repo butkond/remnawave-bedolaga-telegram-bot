@@ -236,14 +236,25 @@ async def test_remnawave_sync_processes_first_connected_recovery(monkeypatch):
         process_mock,
     )
 
-    db = AsyncMock()
-    db.get = AsyncMock(side_effect=[user, subscription])
+    recovery_db = AsyncMock()
+    recovery_db.get = AsyncMock(side_effect=[user, subscription])
 
-    processed = await service._process_first_connected_recovery_candidates(db, candidates)
+    class RecoverySession:
+        async def __aenter__(self):
+            return recovery_db
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+    monkeypatch.setattr('app.database.database.AsyncSessionLocal', RecoverySession)
+
+    sync_db = AsyncMock()
+    processed = await service._process_first_connected_recovery_candidates(sync_db, candidates)
 
     assert processed == 1
-    assert db.get.await_args_list[0].args == (User, 10)
-    assert db.get.await_args_list[1].args == (Subscription, 30)
+    sync_db.get.assert_not_called()
+    assert recovery_db.get.await_args_list[0].args == (User, 10)
+    assert recovery_db.get.await_args_list[1].args == (Subscription, 30)
     process_mock.assert_awaited_once()
     _, kwargs = process_mock.call_args
     assert kwargs['user'] is user

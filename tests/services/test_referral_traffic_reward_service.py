@@ -185,3 +185,63 @@ async def test_first_connected_webhook_calls_referral_reward_service(monkeypatch
 
     process_mock.assert_awaited_once_with(db, user=user, subscription=subscription, data=data, bot=service.bot)
     service._notify_user.assert_awaited_once()
+
+
+def test_remnawave_sync_first_connected_recovery_requires_first_connected_at(monkeypatch):
+    from app.services.remnawave_service import RemnaWaveService
+
+    service = RemnaWaveService.__new__(RemnaWaveService)
+    monkeypatch.setattr('app.services.remnawave_service.settings.REFERRAL_TRAFFIC_REWARDS_ENABLED', True)
+
+    candidates = []
+    user = SimpleNamespace(id=10, referred_by_id=20)
+    subscription = SimpleNamespace(id=30)
+
+    service._append_first_connected_recovery_candidate(
+        candidates,
+        panel_user={'uuid': 'panel-uuid'},
+        user=user,
+        subscription=subscription,
+    )
+
+    assert candidates == []
+
+
+@pytest.mark.asyncio
+async def test_remnawave_sync_processes_first_connected_recovery(monkeypatch):
+    from app.services.remnawave_service import RemnaWaveService
+
+    service = RemnaWaveService.__new__(RemnaWaveService)
+    monkeypatch.setattr('app.services.remnawave_service.settings.REFERRAL_TRAFFIC_REWARDS_ENABLED', True)
+
+    candidates = []
+    user = SimpleNamespace(id=10, referred_by_id=20)
+    subscription = SimpleNamespace(id=30)
+    panel_user = {'uuid': 'panel-uuid', 'firstConnectedAt': '2026-08-14T10:00:00+00:00'}
+
+    service._append_first_connected_recovery_candidate(
+        candidates,
+        panel_user=panel_user,
+        user=user,
+        subscription=subscription,
+    )
+
+    process_mock = AsyncMock(return_value=True)
+    monkeypatch.setattr(
+        'app.services.referral_traffic_reward_service.process_first_connected',
+        process_mock,
+    )
+
+    processed = await service._process_first_connected_recovery_candidates(AsyncMock(), candidates)
+
+    assert processed == 1
+    process_mock.assert_awaited_once()
+    _, kwargs = process_mock.call_args
+    assert kwargs['user'] is user
+    assert kwargs['subscription'] is subscription
+    assert kwargs['bot'] is None
+    assert kwargs['data'] == {
+        'event': 'sync.first_connected_recovery',
+        'uuid': 'panel-uuid',
+        'firstConnectedAt': '2026-08-14T10:00:00+00:00',
+    }

@@ -1,7 +1,7 @@
 import asyncio
 import re
 from contextlib import AsyncExitStack, asynccontextmanager
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
@@ -34,12 +34,12 @@ from app.external.remnawave_api import (
     UserStatus,
 )
 from app.services.subscription_service import get_traffic_reset_strategy
+from app.utils.happ_crypto import create_happ_crypto_link
 from app.utils.subscription_utils import (
     coerce_panel_device_limit,
     device_limit_needs_heal,
     resolve_hwid_device_limit_for_payload,
 )
-from app.utils.happ_crypto import create_happ_crypto_link
 from app.utils.timezone import get_local_timezone
 
 
@@ -68,6 +68,13 @@ def _get_lifetime_traffic_bytes(panel_user: dict[str, Any]) -> int:
 
 _UUID_MAP_MISSING = object()
 _ATTR_NOT_CAPTURED = object()
+
+
+@dataclass(slots=True)
+class _FirstConnectedRecoveryCandidate:
+    user: User
+    subscription: Subscription | None
+    panel_user: dict[str, Any]
 
 
 class _UUIDMapMutation:
@@ -335,6 +342,86 @@ class RemnaWaveService:
             return datetime.min.replace(tzinfo=UTC)
 
         return self._parse_remnawave_date(expire_at_str)
+
+    def _get_panel_first_connected_at(self, panel_user: dict[str, Any]) -> Any | None:
+        first_connected_at = panel_user.get('firstConnectedAt')
+        if first_connected_at:
+            return first_connected_at
+
+        user_traffic = panel_user.get('userTraffic')
+        if isinstance(user_traffic, dict):
+            return user_traffic.get('firstConnectedAt')
+
+        return None
+
+    def _append_first_connected_recovery_candidate(
+        self,
+        candidates: list[_FirstConnectedRecoveryCandidate],
+        *,
+        panel_user: dict[str, Any],
+        user: User | None,
+        subscription: Subscription | None,
+    ) -> None:
+        if not settings.REFERRAL_TRAFFIC_REWARDS_ENABLED:
+            return
+        if not user or not getattr(user, 'referred_by_id', None):
+            return
+        if not self._get_panel_first_connected_at(panel_user):
+            return
+
+        candidates.append(
+            _FirstConnectedRecoveryCandidate(
+                user=user,
+                subscription=subscription,
+                panel_user=panel_user,
+            )
+        )
+
+    async def _process_first_connected_recovery_candidates(
+        self,
+        db: AsyncSession,
+        candidates: list[_FirstConnectedRecoveryCandidate],
+    ) -> int:
+        if not candidates:
+            return 0
+
+        from app.services.referral_traffic_reward_service import process_first_connected
+
+        processed = 0
+        for candidate in candidates:
+            panel_user = candidate.panel_user
+            recovery_data = {
+                'event': 'sync.first_connected_recovery',
+                'uuid': panel_user.get('uuid'),
+                'firstConnectedAt': self._get_panel_first_connected_at(panel_user),
+            }
+            try:
+                ok = await process_first_connected(
+                    db,
+                    user=candidate.user,
+                    subscription=candidate.subscription,
+                    data=recovery_data,
+                    bot=None,
+                )
+            except Exception as exc:
+                logger.error(
+                    'Failed to process first-connected recovery from Remnawave sync',
+                    user_id=getattr(candidate.user, 'id', None),
+                    subscription_id=getattr(candidate.subscription, 'id', None),
+                    remnawave_uuid=panel_user.get('uuid'),
+                    error=exc,
+                )
+                continue
+
+            if ok:
+                processed += 1
+
+        logger.info(
+            'Processed first-connected recovery candidates from Remnawave sync',
+            candidates=len(candidates),
+            processed=processed,
+        )
+        return processed
 
     def _is_preferred_panel_user(
         self,
@@ -1449,9 +1536,13 @@ class RemnaWaveService:
                             'expireAt': user_obj.expire_at.isoformat(),
                             'trafficLimitBytes': user_obj.traffic_limit_bytes,
                             'usedTrafficBytes': user_obj.used_traffic_bytes,
+                            'firstConnectedAt': (
+                                user_obj.first_connected_at.isoformat() if user_obj.first_connected_at else None
+                            ),
                             'hwidDeviceLimit': user_obj.hwid_device_limit,
                             'subscriptionUrl': user_obj.subscription_url,
-                            'subscriptionCryptoLink': user_obj.happ_crypto_link or create_happ_crypto_link(user_obj.subscription_url),
+                            'subscriptionCryptoLink': user_obj.happ_crypto_link
+                            or create_happ_crypto_link(user_obj.subscription_url),
                             'activeInternalSquads': user_obj.active_internal_squads,
                         }
                         panel_users.append(user_dict)
@@ -1534,6 +1625,7 @@ class RemnaWaveService:
             # Для оптимизации коммитим изменения каждые N пользователей
             batch_size = 50
             pending_uuid_mutations: list[_UUIDMapMutation] = []
+            first_connected_recovery_candidates: list[_FirstConnectedRecoveryCandidate] = []
 
             for i, panel_user in enumerate(unique_panel_users):
                 uuid_mutation: _UUIDMapMutation | None = None
@@ -1588,6 +1680,13 @@ class RemnaWaveService:
                             stats['updated'] += 1
                             logger.info('♻️ Обновлена подписка существующего пользователя', telegram_id=telegram_id)
 
+                        self._append_first_connected_recovery_candidate(
+                            first_connected_recovery_candidates,
+                            panel_user=panel_user,
+                            user=db_user,
+                            subscription=None,
+                        )
+
                     elif sync_type in ['update_only', 'all', 'new_only']:
                         logger.debug('🔄 Обновление пользователя', panel_uuid=panel_uuid)
 
@@ -1623,6 +1722,13 @@ class RemnaWaveService:
                             await self._update_subscription_from_panel_data(db, db_user, panel_user)
                         else:
                             await self._create_subscription_from_panel_data(db, db_user, panel_user)
+
+                        self._append_first_connected_recovery_candidate(
+                            first_connected_recovery_candidates,
+                            panel_user=panel_user,
+                            user=db_user,
+                            subscription=existing_sub,
+                        )
 
                         stats['updated'] += 1
                         logger.debug('✅ Обновлён пользователь', panel_uuid=panel_uuid)
@@ -1686,6 +1792,13 @@ class RemnaWaveService:
                 for mutation in reversed(pending_uuid_mutations):
                     mutation.rollback()
                 pending_uuid_mutations.clear()
+
+            recovery_processed = await self._process_first_connected_recovery_candidates(
+                db,
+                first_connected_recovery_candidates,
+            )
+            if recovery_processed < len(first_connected_recovery_candidates):
+                stats['errors'] += len(first_connected_recovery_candidates) - recovery_processed
 
             if sync_type == 'all':
                 logger.info(
@@ -1944,10 +2057,14 @@ class RemnaWaveService:
                                 'email': user_obj.email,
                                 'expireAt': user_obj.expire_at.isoformat(),
                                 'usedTrafficBytes': user_obj.used_traffic_bytes,
+                                'firstConnectedAt': (
+                                    user_obj.first_connected_at.isoformat() if user_obj.first_connected_at else None
+                                ),
                                 'trafficLimitBytes': user_obj.traffic_limit_bytes,
                                 'hwidDeviceLimit': user_obj.hwid_device_limit,
                                 'subscriptionUrl': user_obj.subscription_url,
-                                'subscriptionCryptoLink': user_obj.happ_crypto_link or create_happ_crypto_link(user_obj.subscription_url),
+                                'subscriptionCryptoLink': user_obj.happ_crypto_link
+                                or create_happ_crypto_link(user_obj.subscription_url),
                                 'activeInternalSquads': user_obj.active_internal_squads,
                             }
                         )
@@ -1999,6 +2116,7 @@ class RemnaWaveService:
             )
 
             # Match and update
+            first_connected_recovery_candidates: list[_FirstConnectedRecoveryCandidate] = []
             for panel_user in panel_users:
                 panel_uuid = panel_user.get('uuid')
                 if not panel_uuid:
@@ -2070,6 +2188,13 @@ class RemnaWaveService:
                     if _squad_uuids and set(_squad_uuids) != set(subscription.connected_squads or []):
                         subscription.connected_squads = _squad_uuids
 
+                    self._append_first_connected_recovery_candidate(
+                        first_connected_recovery_candidates,
+                        panel_user=panel_user,
+                        user=subscription.user,
+                        subscription=subscription,
+                    )
+
                     stats['updated'] += 1
                 except Exception as e:
                     logger.error(
@@ -2080,6 +2205,12 @@ class RemnaWaveService:
                     stats['errors'] += 1
 
             await db.commit()
+            recovery_processed = await self._process_first_connected_recovery_candidates(
+                db,
+                first_connected_recovery_candidates,
+            )
+            if recovery_processed < len(first_connected_recovery_candidates):
+                stats['errors'] += len(first_connected_recovery_candidates) - recovery_processed
 
             logger.info(
                 '🎯 [multi-tariff] Синхронизация завершена',

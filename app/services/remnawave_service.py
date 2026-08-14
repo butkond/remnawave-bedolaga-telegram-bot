@@ -72,8 +72,8 @@ _ATTR_NOT_CAPTURED = object()
 
 @dataclass(slots=True)
 class _FirstConnectedRecoveryCandidate:
-    user: User
-    subscription: Subscription | None
+    user_id: int
+    subscription_id: int | None
     panel_user: dict[str, Any]
 
 
@@ -371,8 +371,8 @@ class RemnaWaveService:
 
         candidates.append(
             _FirstConnectedRecoveryCandidate(
-                user=user,
-                subscription=subscription,
+                user_id=user.id,
+                subscription_id=subscription.id if subscription else None,
                 panel_user=panel_user,
             )
         )
@@ -396,18 +396,31 @@ class RemnaWaveService:
                 'firstConnectedAt': self._get_panel_first_connected_at(panel_user),
             }
             try:
+                user = await db.get(User, candidate.user_id)
+                if not user:
+                    logger.warning(
+                        'First-connected recovery skipped: user not found',
+                        user_id=candidate.user_id,
+                        remnawave_uuid=panel_user.get('uuid'),
+                    )
+                    continue
+
+                subscription = None
+                if candidate.subscription_id is not None:
+                    subscription = await db.get(Subscription, candidate.subscription_id)
+
                 ok = await process_first_connected(
                     db,
-                    user=candidate.user,
-                    subscription=candidate.subscription,
+                    user=user,
+                    subscription=subscription,
                     data=recovery_data,
                     bot=None,
                 )
             except Exception as exc:
                 logger.error(
                     'Failed to process first-connected recovery from Remnawave sync',
-                    user_id=getattr(candidate.user, 'id', None),
-                    subscription_id=getattr(candidate.subscription, 'id', None),
+                    user_id=candidate.user_id,
+                    subscription_id=candidate.subscription_id,
                     remnawave_uuid=panel_user.get('uuid'),
                     error=exc,
                 )

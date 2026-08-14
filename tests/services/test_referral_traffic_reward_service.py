@@ -209,6 +209,7 @@ def test_remnawave_sync_first_connected_recovery_requires_first_connected_at(mon
 
 @pytest.mark.asyncio
 async def test_remnawave_sync_processes_first_connected_recovery(monkeypatch):
+    from app.database.models import Subscription, User
     from app.services.remnawave_service import RemnaWaveService
 
     service = RemnaWaveService.__new__(RemnaWaveService)
@@ -226,15 +227,23 @@ async def test_remnawave_sync_processes_first_connected_recovery(monkeypatch):
         subscription=subscription,
     )
 
+    assert candidates[0].user_id == 10
+    assert candidates[0].subscription_id == 30
+
     process_mock = AsyncMock(return_value=True)
     monkeypatch.setattr(
         'app.services.referral_traffic_reward_service.process_first_connected',
         process_mock,
     )
 
-    processed = await service._process_first_connected_recovery_candidates(AsyncMock(), candidates)
+    db = AsyncMock()
+    db.get = AsyncMock(side_effect=[user, subscription])
+
+    processed = await service._process_first_connected_recovery_candidates(db, candidates)
 
     assert processed == 1
+    assert db.get.await_args_list[0].args == (User, 10)
+    assert db.get.await_args_list[1].args == (Subscription, 30)
     process_mock.assert_awaited_once()
     _, kwargs = process_mock.call_args
     assert kwargs['user'] is user

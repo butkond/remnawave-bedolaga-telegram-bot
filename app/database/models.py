@@ -2558,12 +2558,13 @@ class ReferralTrafficQualification(Base):
 class ReferralTrafficRewardGrant(Base):
     __tablename__ = 'referral_traffic_reward_grants'
     __table_args__ = (
-        UniqueConstraint('referrer_id', name='uq_referral_traffic_reward_grants_referrer'),
+        UniqueConstraint('referrer_id', 'reward_cycle', name='uq_referral_traffic_reward_grants_referrer_cycle'),
         Index('idx_referral_traffic_reward_grants_subscription', 'subscription_id'),
     )
 
     id = Column(Integer, primary_key=True, index=True)
     referrer_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    reward_cycle = Column(Integer, nullable=False, default=1)
     qualified_count_at_grant = Column(Integer, nullable=False)
     reward_days = Column(Integer, nullable=False)
     subscription_id = Column(Integer, ForeignKey('subscriptions.id', ondelete='SET NULL'), nullable=True)

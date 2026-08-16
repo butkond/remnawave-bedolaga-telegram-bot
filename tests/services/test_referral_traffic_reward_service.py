@@ -90,14 +90,14 @@ async def test_first_connected_duplicate_qualification_does_not_grant(monkeypatc
     monkeypatch.setattr(svc, 'create_qualification', AsyncMock(return_value=None))
     count_mock = AsyncMock(return_value=1)
     monkeypatch.setattr(svc, 'count_qualifications', count_mock)
-    grant_mock = AsyncMock()
-    monkeypatch.setattr(svc, 'get_reward_grant', grant_mock)
+    grant_mock = AsyncMock(return_value=None)
+    monkeypatch.setattr(svc, 'get_last_reward_grant', grant_mock)
 
     result = await svc.process_first_connected(db, user=user, subscription=subscription)
 
     assert result is True
     count_mock.assert_awaited_once_with(db, referrer_id=20)
-    grant_mock.assert_not_awaited()
+    grant_mock.assert_awaited_once_with(db, referrer_id=20)
 
 
 @pytest.mark.asyncio
@@ -122,7 +122,7 @@ async def test_first_connected_duplicate_qualification_grants_when_threshold_rea
     monkeypatch.setattr(svc, 'get_referral_attribution', AsyncMock(return_value=attribution))
     monkeypatch.setattr(svc, 'create_qualification', AsyncMock(return_value=None))
     monkeypatch.setattr(svc, 'count_qualifications', AsyncMock(return_value=1))
-    monkeypatch.setattr(svc, 'get_reward_grant', AsyncMock(return_value=None))
+    monkeypatch.setattr(svc, 'get_last_reward_grant', AsyncMock(return_value=None))
     monkeypatch.setattr(svc, 'get_user_by_id', AsyncMock(return_value=referrer))
     monkeypatch.setattr(svc, 'get_subscription_by_user_id', AsyncMock(return_value=referrer_subscription))
     monkeypatch.setattr(svc, 'create_reward_grant', AsyncMock(return_value=grant))
@@ -138,6 +138,14 @@ async def test_first_connected_duplicate_qualification_grants_when_threshold_rea
     result = await svc.process_first_connected(db, user=user, subscription=subscription)
 
     assert result is True
+    svc.create_reward_grant.assert_awaited_once_with(
+        db,
+        referrer_id=20,
+        reward_cycle=1,
+        qualified_count_at_grant=1,
+        reward_days=7,
+        subscription_id=40,
+    )
     extend_mock.assert_awaited_once_with(db, referrer_subscription, 7)
     update_remnawave_user.assert_awaited_once_with(db, updated_subscription)
 
@@ -164,7 +172,7 @@ async def test_first_connected_grants_reward_when_threshold_reached(monkeypatch)
     monkeypatch.setattr(svc, 'get_referral_attribution', AsyncMock(return_value=attribution))
     monkeypatch.setattr(svc, 'create_qualification', AsyncMock(return_value=SimpleNamespace(id=60)))
     monkeypatch.setattr(svc, 'count_qualifications', AsyncMock(return_value=2))
-    monkeypatch.setattr(svc, 'get_reward_grant', AsyncMock(return_value=None))
+    monkeypatch.setattr(svc, 'get_last_reward_grant', AsyncMock(return_value=None))
     monkeypatch.setattr(svc, 'get_user_by_id', AsyncMock(return_value=referrer))
     monkeypatch.setattr(svc, 'get_subscription_by_user_id', AsyncMock(return_value=referrer_subscription))
     monkeypatch.setattr(svc, 'create_reward_grant', AsyncMock(return_value=grant))
@@ -180,6 +188,117 @@ async def test_first_connected_grants_reward_when_threshold_reached(monkeypatch)
     result = await svc.process_first_connected(db, user=user, subscription=subscription)
 
     assert result is True
+    svc.create_reward_grant.assert_awaited_once_with(
+        db,
+        referrer_id=20,
+        reward_cycle=1,
+        qualified_count_at_grant=2,
+        reward_days=7,
+        subscription_id=40,
+    )
+    extend_mock.assert_awaited_once_with(db, referrer_subscription, 7)
+    update_remnawave_user.assert_awaited_once_with(db, updated_subscription)
+
+
+@pytest.mark.asyncio
+async def test_first_connected_grants_next_reward_cycle_when_threshold_reached_again(monkeypatch):
+    from app.services import referral_traffic_reward_service as svc
+
+    monkeypatch.setattr(svc.settings, 'REFERRAL_TRAFFIC_REWARDS_ENABLED', True)
+    monkeypatch.setattr(svc.settings, 'REFERRAL_TRAFFIC_REWARD_REQUIRED_REFERRALS', 2)
+    monkeypatch.setattr(svc.settings, 'REFERRAL_TRAFFIC_REWARD_DAYS', 7)
+    monkeypatch.setattr(svc.settings, 'REFERRAL_TRAFFIC_REWARD_QUALIFICATION_WINDOW_DAYS', 0)
+    monkeypatch.setattr(svc.settings, 'REFERRAL_TRAFFIC_REWARD_NOTIFY', False)
+
+    db = AsyncMock()
+    user = SimpleNamespace(id=12, referred_by_id=20, remnawave_uuid='user-uuid-2', full_name='Referral 2')
+    subscription = SimpleNamespace(id=32, remnawave_uuid='sub-uuid-2')
+    referrer = SimpleNamespace(id=20, telegram_id=200, full_name='Referrer')
+    referrer_subscription = SimpleNamespace(id=40)
+    updated_subscription = SimpleNamespace(id=40)
+    attribution = SimpleNamespace(mode='traffic_reward', referrer_id=20, mode_captured_at=None)
+    first_cycle_grant = SimpleNamespace(id=50, reward_cycle=1, qualified_count_at_grant=2)
+    second_cycle_grant = SimpleNamespace(id=51, reward_cycle=2)
+
+    monkeypatch.setattr(svc, 'get_referral_attribution', AsyncMock(return_value=attribution))
+    monkeypatch.setattr(svc, 'create_qualification', AsyncMock(return_value=SimpleNamespace(id=61)))
+    monkeypatch.setattr(svc, 'count_qualifications', AsyncMock(return_value=4))
+    monkeypatch.setattr(svc, 'get_last_reward_grant', AsyncMock(return_value=first_cycle_grant))
+    monkeypatch.setattr(svc, 'get_user_by_id', AsyncMock(return_value=referrer))
+    monkeypatch.setattr(svc, 'get_subscription_by_user_id', AsyncMock(return_value=referrer_subscription))
+    monkeypatch.setattr(svc, 'create_reward_grant', AsyncMock(return_value=second_cycle_grant))
+    extend_mock = AsyncMock(return_value=updated_subscription)
+    monkeypatch.setattr(svc, 'extend_subscription', extend_mock)
+
+    update_remnawave_user = AsyncMock()
+    monkeypatch.setattr(
+        'app.services.subscription_service.SubscriptionService',
+        lambda: SimpleNamespace(update_remnawave_user=update_remnawave_user),
+    )
+
+    result = await svc.process_first_connected(db, user=user, subscription=subscription)
+
+    assert result is True
+    svc.get_last_reward_grant.assert_awaited_once_with(db, referrer_id=20)
+    svc.create_reward_grant.assert_awaited_once_with(
+        db,
+        referrer_id=20,
+        reward_cycle=2,
+        qualified_count_at_grant=4,
+        reward_days=7,
+        subscription_id=40,
+    )
+    extend_mock.assert_awaited_once_with(db, referrer_subscription, 7)
+    update_remnawave_user.assert_awaited_once_with(db, updated_subscription)
+
+
+@pytest.mark.asyncio
+async def test_first_connected_after_threshold_change_does_not_reuse_rewarded_referrals(monkeypatch):
+    from app.services import referral_traffic_reward_service as svc
+
+    monkeypatch.setattr(svc.settings, 'REFERRAL_TRAFFIC_REWARDS_ENABLED', True)
+    monkeypatch.setattr(svc.settings, 'REFERRAL_TRAFFIC_REWARD_REQUIRED_REFERRALS', 1)
+    monkeypatch.setattr(svc.settings, 'REFERRAL_TRAFFIC_REWARD_DAYS', 7)
+    monkeypatch.setattr(svc.settings, 'REFERRAL_TRAFFIC_REWARD_QUALIFICATION_WINDOW_DAYS', 0)
+    monkeypatch.setattr(svc.settings, 'REFERRAL_TRAFFIC_REWARD_NOTIFY', False)
+
+    db = AsyncMock()
+    user = SimpleNamespace(id=12, referred_by_id=20, remnawave_uuid='user-uuid-3', full_name='Referral 3')
+    subscription = SimpleNamespace(id=32, remnawave_uuid='sub-uuid-3')
+    referrer = SimpleNamespace(id=20, telegram_id=200, full_name='Referrer')
+    referrer_subscription = SimpleNamespace(id=40)
+    updated_subscription = SimpleNamespace(id=40)
+    attribution = SimpleNamespace(mode='traffic_reward', referrer_id=20, mode_captured_at=None)
+    previous_grant = SimpleNamespace(id=50, reward_cycle=1, qualified_count_at_grant=2)
+    next_grant = SimpleNamespace(id=51, reward_cycle=2)
+
+    monkeypatch.setattr(svc, 'get_referral_attribution', AsyncMock(return_value=attribution))
+    monkeypatch.setattr(svc, 'create_qualification', AsyncMock(return_value=SimpleNamespace(id=62)))
+    monkeypatch.setattr(svc, 'count_qualifications', AsyncMock(return_value=3))
+    monkeypatch.setattr(svc, 'get_last_reward_grant', AsyncMock(return_value=previous_grant))
+    monkeypatch.setattr(svc, 'get_user_by_id', AsyncMock(return_value=referrer))
+    monkeypatch.setattr(svc, 'get_subscription_by_user_id', AsyncMock(return_value=referrer_subscription))
+    monkeypatch.setattr(svc, 'create_reward_grant', AsyncMock(return_value=next_grant))
+    extend_mock = AsyncMock(return_value=updated_subscription)
+    monkeypatch.setattr(svc, 'extend_subscription', extend_mock)
+
+    update_remnawave_user = AsyncMock()
+    monkeypatch.setattr(
+        'app.services.subscription_service.SubscriptionService',
+        lambda: SimpleNamespace(update_remnawave_user=update_remnawave_user),
+    )
+
+    result = await svc.process_first_connected(db, user=user, subscription=subscription)
+
+    assert result is True
+    svc.create_reward_grant.assert_awaited_once_with(
+        db,
+        referrer_id=20,
+        reward_cycle=2,
+        qualified_count_at_grant=3,
+        reward_days=7,
+        subscription_id=40,
+    )
     extend_mock.assert_awaited_once_with(db, referrer_subscription, 7)
     update_remnawave_user.assert_awaited_once_with(db, updated_subscription)
 

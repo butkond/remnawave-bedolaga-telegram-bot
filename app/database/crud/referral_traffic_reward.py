@@ -106,11 +106,27 @@ async def get_reward_grant(
     db: AsyncSession,
     *,
     referrer_id: int,
+    reward_cycle: int,
 ) -> ReferralTrafficRewardGrant | None:
     result = await db.execute(
         select(ReferralTrafficRewardGrant).where(
             ReferralTrafficRewardGrant.referrer_id == referrer_id,
+            ReferralTrafficRewardGrant.reward_cycle == reward_cycle,
         )
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_last_reward_grant(
+    db: AsyncSession,
+    *,
+    referrer_id: int,
+) -> ReferralTrafficRewardGrant | None:
+    result = await db.execute(
+        select(ReferralTrafficRewardGrant)
+        .where(ReferralTrafficRewardGrant.referrer_id == referrer_id)
+        .order_by(ReferralTrafficRewardGrant.reward_cycle.desc())
+        .limit(1)
     )
     return result.scalar_one_or_none()
 
@@ -119,12 +135,14 @@ async def create_reward_grant(
     db: AsyncSession,
     *,
     referrer_id: int,
+    reward_cycle: int,
     qualified_count_at_grant: int,
     reward_days: int,
     subscription_id: int | None,
 ) -> ReferralTrafficRewardGrant | None:
     grant = ReferralTrafficRewardGrant(
         referrer_id=referrer_id,
+        reward_cycle=reward_cycle,
         qualified_count_at_grant=qualified_count_at_grant,
         reward_days=reward_days,
         subscription_id=subscription_id,
@@ -140,5 +158,6 @@ async def create_reward_grant(
         logger.info(
             'Referral traffic reward grant already exists, skipping duplicate',
             referrer_id=referrer_id,
+            reward_cycle=reward_cycle,
         )
         return None

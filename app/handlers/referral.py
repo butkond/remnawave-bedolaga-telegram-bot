@@ -142,7 +142,7 @@ async def show_referral_info(
     if 'traffic_reward' in available_modes:
         referral_text += '\n' + texts.t(
             'REFERRAL_REWARD_TRAFFIC',
-            '• За {required} рефералов, впервые подключившихся к VPN: <b>{days} дн.</b> подписки',
+            '• За {required} рефералов, впервые подключившихся к VPN: <b>+{days} дн.</b> подписки',
         ).format(
             required=settings.REFERRAL_TRAFFIC_REWARD_REQUIRED_REFERRALS,
             days=settings.REFERRAL_TRAFFIC_REWARD_DAYS,

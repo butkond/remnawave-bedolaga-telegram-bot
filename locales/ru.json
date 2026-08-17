@@ -1780,7 +1780,7 @@
   "WEBHOOK_DEVICE_ADDED": "📱 <b>Новое устройство</b>\n\nК подписке{tariff_label} подключено новое устройство: <code>{device}</code>",
   "WEBHOOK_DEVICE_DELETED": "📱 <b>Устройство удалено</b>\n\nУстройство отключено от подписки{tariff_label}: <code>{device}</code>",
   "WEBHOOK_CLOSE_BUTTON": "✖️ Закрыть",
-  "REFERRAL_TRAFFIC_REWARD_GRANTED": "🎁 <b>Реферальная награда начислена!</b>\n\nВаши приглашённые пользователи начали пользоваться VPN.\nПодписка продлена на <b>{reward_days} дн.</b>\n\nПоследний засчитанный реферал: <b>{referral_name}</b>",
+  "REFERRAL_TRAFFIC_REWARD_GRANTED": "🎁 <b>Реферальная награда начислена!</b>\n\nПриглашённый пользователь активировал VPN.\n✅ Подписка продлена на <b>+{reward_days} дней.</b>\n\nПоследний засчитанный реферал: <b>{referral_name}</b>",
   "REFERRAL_ACTIVE_MODE": "• <b>{mode}</b>",
   "REFERRAL_REWARD_TRAFFIC": "• За {required} рефералов, впервые подключившихся к VPN: <b>+{days} дн.</b> подписки",
   "REFERRAL_MODE_BALANCE_LABEL": "Бонусы за пополнения",

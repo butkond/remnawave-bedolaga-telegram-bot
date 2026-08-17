@@ -194,6 +194,10 @@ async def show_referral_statistics(callback: types.CallbackQuery, db_user: User,
     avg_per_referrer = 0
     if stats['active_referrers'] > 0:
         avg_per_referrer = stats['total_paid_kopeks'] / stats['active_referrers']
+    show_traffic_reward_days = 'traffic_reward' in settings.get_available_referral_reward_modes()
+    traffic_total_line = ''
+    if show_traffic_reward_days:
+        traffic_total_line = f'- Бесплатных дней выдано: {stats.get("total_traffic_reward_days", 0)}\n'
 
     text = f"""
 🤝 <b>Реферальная статистика</b>
@@ -202,6 +206,7 @@ async def show_referral_statistics(callback: types.CallbackQuery, db_user: User,
 - Пользователей с рефералами: {stats['users_with_referrals']}
 - Активных рефереров: {stats['active_referrers']}
 - Выплачено всего: {settings.format_price(stats['total_paid_kopeks'])}
+{traffic_total_line}
 
 <b>За период:</b>
 - Сегодня: {settings.format_price(stats['today_earnings_kopeks'])}
@@ -218,8 +223,10 @@ async def show_referral_statistics(callback: types.CallbackQuery, db_user: User,
         for i, referrer in enumerate(stats['top_referrers'][:5], 1):
             name = referrer['display_name']
             earned = settings.format_price(referrer['total_earned_kopeks'])
+            traffic_days = referrer.get('traffic_reward_days', 0)
             count = referrer['referrals_count']
-            text += f'{i}. {name}: {earned} ({count} реф.)\n'
+            traffic_part = f' | 🎁 {traffic_days} дн.' if show_traffic_reward_days else ''
+            text += f'{i}. {name}: {earned}{traffic_part} ({count} реф.)\n'
     else:
         text += 'Пока нет активных рефереров'
 

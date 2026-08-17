@@ -382,6 +382,8 @@ async def show_detailed_referral_list(callback: types.CallbackQuery, db_user: Us
         + '\n\n'
     )
 
+    show_traffic_reward_days = 'traffic_reward' in settings.get_available_referral_reward_modes()
+
     for i, referral in enumerate(referrals_data['referrals'], 1):
         status_emoji = '🟢' if referral['status'] == 'active' else '🔴'
 
@@ -408,6 +410,14 @@ async def show_detailed_referral_list(callback: types.CallbackQuery, db_user: Us
             ).format(amount=texts.format_price(referral['total_earned_kopeks']))
             + '\n'
         )
+        if show_traffic_reward_days:
+            text += (
+                texts.t(
+                    'REFERRAL_LIST_ITEM_TRAFFIC_DAYS_EARNED',
+                    '   🎁 Заработано дней с него: {days}',
+                ).format(days=referral.get('traffic_reward_days_earned', 0))
+                + '\n'
+            )
         text += (
             texts.t(
                 'REFERRAL_LIST_ITEM_REGISTERED',

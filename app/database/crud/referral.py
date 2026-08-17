@@ -5,7 +5,14 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.database.models import AdvertisingCampaignRegistration, ReferralEarning, Subscription, SubscriptionStatus, User
+from app.database.models import (
+    AdvertisingCampaignRegistration,
+    ReferralEarning,
+    ReferralTrafficRewardGrant,
+    Subscription,
+    SubscriptionStatus,
+    User,
+)
 
 
 logger = structlog.get_logger(__name__)
@@ -118,6 +125,11 @@ async def get_referral_statistics(db: AsyncSession) -> dict:
     referral_paid_result = await db.execute(select(func.coalesce(func.sum(ReferralEarning.amount_kopeks), 0)))
     total_paid = referral_paid_result.scalar()
 
+    traffic_reward_days_result = await db.execute(
+        select(func.coalesce(func.sum(ReferralTrafficRewardGrant.reward_days), 0))
+    )
+    total_traffic_reward_days = int(traffic_reward_days_result.scalar() or 0)
+
     referrals_stats_result = await db.execute(
         select(User.referred_by_id.label('referrer_id'), func.count(User.id).label('referrals_count'))
         .where(User.referred_by_id.isnot(None))
@@ -133,6 +145,16 @@ async def get_referral_statistics(db: AsyncSession) -> dict:
     )
     referral_earnings = {row.referrer_id: row.referral_earnings for row in referral_earnings_result.all()}
 
+    traffic_reward_days_result = await db.execute(
+        select(
+            ReferralTrafficRewardGrant.referrer_id.label('referrer_id'),
+            func.sum(ReferralTrafficRewardGrant.reward_days).label('traffic_reward_days'),
+        ).group_by(ReferralTrafficRewardGrant.referrer_id)
+    )
+    traffic_reward_days = {
+        row.referrer_id: int(row.traffic_reward_days or 0) for row in traffic_reward_days_result.all()
+    }
+
     top_referrers_data = {}
 
     for referrer_id, count in referrals_stats.items():
@@ -144,6 +166,11 @@ async def get_referral_statistics(db: AsyncSession) -> dict:
         if referrer_id not in top_referrers_data:
             top_referrers_data[referrer_id] = {'referrals_count': 0, 'total_earned': 0}
         top_referrers_data[referrer_id]['total_earned'] += earnings or 0
+
+    for referrer_id, days in traffic_reward_days.items():
+        if referrer_id not in top_referrers_data:
+            top_referrers_data[referrer_id] = {'referrals_count': 0, 'total_earned': 0}
+        top_referrers_data[referrer_id]['traffic_reward_days'] = days
 
     sorted_referrers = sorted(
         top_referrers_data.items(), key=lambda x: (x[1]['total_earned'], x[1]['referrals_count']), reverse=True
@@ -178,6 +205,7 @@ async def get_referral_statistics(db: AsyncSession) -> dict:
                     'username': user.username,
                     'telegram_id': user.telegram_id,  # Can be None for email users
                     'total_earned_kopeks': stats['total_earned'],
+                    'traffic_reward_days': stats.get('traffic_reward_days', 0),
                     'referrals_count': stats['referrals_count'],
                 }
             )
@@ -212,6 +240,7 @@ async def get_referral_statistics(db: AsyncSession) -> dict:
         'users_with_referrals': users_with_referrals,
         'active_referrers': active_referrers,
         'total_paid_kopeks': total_paid,
+        'total_traffic_reward_days': total_traffic_reward_days,
         'today_earnings_kopeks': today_earnings,
         'week_earnings_kopeks': week_earnings,
         'month_earnings_kopeks': month_earnings,
@@ -261,9 +290,23 @@ async def get_top_referrers_by_period(
                 )
             )
             earnings = earnings_result.scalar() or 0
+            traffic_days_result = await db.execute(
+                select(func.coalesce(func.sum(ReferralTrafficRewardGrant.reward_days), 0)).where(
+                    and_(
+                        ReferralTrafficRewardGrant.referrer_id == row.referrer_id,
+                        ReferralTrafficRewardGrant.granted_at >= start_date,
+                    )
+                )
+            )
+            traffic_reward_days = int(traffic_days_result.scalar() or 0)
 
             top_data.append(
-                {'referrer_id': row.referrer_id, 'invited_count': row.invited_count, 'earnings_kopeks': earnings}
+                {
+                    'referrer_id': row.referrer_id,
+                    'invited_count': row.invited_count,
+                    'earnings_kopeks': earnings,
+                    'traffic_reward_days': traffic_reward_days,
+                }
             )
     else:
         # Топ по заработку за период
@@ -278,6 +321,16 @@ async def get_top_referrers_by_period(
         )
         referral_earnings = {row.referrer_id: row.ref_earnings for row in referral_earnings_result}
 
+        traffic_days_result = await db.execute(
+            select(
+                ReferralTrafficRewardGrant.referrer_id.label('referrer_id'),
+                func.sum(ReferralTrafficRewardGrant.reward_days).label('traffic_reward_days'),
+            )
+            .where(ReferralTrafficRewardGrant.granted_at >= start_date)
+            .group_by(ReferralTrafficRewardGrant.referrer_id)
+        )
+        traffic_reward_days = {row.referrer_id: int(row.traffic_reward_days or 0) for row in traffic_days_result.all()}
+
         # Сортируем и берём топ
         sorted_referrers = sorted(referral_earnings.items(), key=lambda x: x[1], reverse=True)[:limit]
 
@@ -291,7 +344,14 @@ async def get_top_referrers_by_period(
             )
             invited_count = invited_result.scalar() or 0
 
-            top_data.append({'referrer_id': referrer_id, 'invited_count': invited_count, 'earnings_kopeks': earnings})
+            top_data.append(
+                {
+                    'referrer_id': referrer_id,
+                    'invited_count': invited_count,
+                    'earnings_kopeks': earnings,
+                    'traffic_reward_days': traffic_reward_days.get(referrer_id, 0),
+                }
+            )
 
     # Добавляем информацию о пользователях
     result = []
@@ -324,6 +384,7 @@ async def get_top_referrers_by_period(
                     'display_name': display_name,
                     'invited_count': data['invited_count'],
                     'earnings_kopeks': data['earnings_kopeks'],
+                    'traffic_reward_days': data.get('traffic_reward_days', 0),
                 }
             )
 

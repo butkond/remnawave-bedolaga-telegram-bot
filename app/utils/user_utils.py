@@ -8,10 +8,68 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
-from app.database.models import ReferralEarning, Subscription, SubscriptionStatus, Transaction, TransactionType, User
+from app.database.models import (
+    ReferralEarning,
+    ReferralTrafficQualification,
+    ReferralTrafficRewardGrant,
+    Subscription,
+    SubscriptionStatus,
+    Transaction,
+    TransactionType,
+    User,
+)
 
 
 logger = structlog.get_logger(__name__)
+
+
+async def get_referral_traffic_reward_days_by_referral(
+    db: AsyncSession,
+    referrer_id: int,
+    referral_ids: list[int] | None = None,
+) -> dict[int, int]:
+    grants_result = await db.execute(
+        select(
+            ReferralTrafficRewardGrant.qualified_count_at_grant,
+            func.coalesce(func.sum(ReferralTrafficRewardGrant.reward_days), 0).label('reward_days'),
+        )
+        .where(ReferralTrafficRewardGrant.referrer_id == referrer_id)
+        .group_by(ReferralTrafficRewardGrant.qualified_count_at_grant)
+    )
+    reward_days_by_qualification_number = {
+        int(row.qualified_count_at_grant): int(row.reward_days or 0) for row in grants_result.all()
+    }
+    if not reward_days_by_qualification_number:
+        return {}
+
+    ranked_qualifications = (
+        select(
+            ReferralTrafficQualification.referral_id.label('referral_id'),
+            func.row_number()
+            .over(
+                partition_by=ReferralTrafficQualification.referrer_id,
+                order_by=(ReferralTrafficQualification.qualified_at.asc(), ReferralTrafficQualification.id.asc()),
+            )
+            .label('qualification_number'),
+        )
+        .where(ReferralTrafficQualification.referrer_id == referrer_id)
+        .subquery()
+    )
+
+    query = select(ranked_qualifications.c.referral_id, ranked_qualifications.c.qualification_number).where(
+        ranked_qualifications.c.qualification_number.in_(list(reward_days_by_qualification_number))
+    )
+    if referral_ids is not None:
+        query = query.where(ranked_qualifications.c.referral_id.in_(referral_ids))
+
+    result = await db.execute(query)
+    reward_days_by_referral: dict[int, int] = {}
+    for row in result.all():
+        reward_days_by_referral[int(row.referral_id)] = reward_days_by_referral.get(
+            int(row.referral_id), 0
+        ) + reward_days_by_qualification_number.get(int(row.qualification_number), 0)
+
+    return reward_days_by_referral
 
 
 def format_referrer_info(user: User) -> str:
@@ -215,6 +273,15 @@ async def get_detailed_referral_list(db: AsyncSession, user_id: int, limit: int 
         total_count_result = await db.execute(select(func.count(User.id)).where(User.referred_by_id == user_id))
         total_count = total_count_result.scalar() or 0
 
+        show_traffic_reward_days = 'traffic_reward' in settings.get_available_referral_reward_modes()
+        traffic_reward_days_by_referral = {}
+        if show_traffic_reward_days and referrals:
+            traffic_reward_days_by_referral = await get_referral_traffic_reward_days_by_referral(
+                db,
+                user_id,
+                [referral.id for referral in referrals],
+            )
+
         detailed_referrals = []
         for referral in referrals:
             earnings_result = await db.execute(
@@ -252,6 +319,7 @@ async def get_detailed_referral_list(db: AsyncSession, user_id: int, limit: int 
                     'has_made_first_topup': referral.has_made_first_topup,
                     'balance_kopeks': referral.balance_kopeks,
                     'total_earned_kopeks': total_earned_from_referral,
+                    'traffic_reward_days_earned': traffic_reward_days_by_referral.get(referral.id, 0),
                     'topups_count': topups_count,
                     'days_since_registration': days_since_registration,
                     'days_since_activity': days_since_activity,

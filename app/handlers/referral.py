@@ -72,31 +72,31 @@ async def show_referral_info(
             'REFERRAL_STATS_INVITED',
             '• Приглашено пользователей: <b>{count}</b>',
         ).format(count=summary['invited_count'])
-        + '\n'
-        + texts.t(
-            'REFERRAL_STATS_FIRST_TOPUPS',
-            '• Сделали первое пополнение: <b>{count}</b>',
-        ).format(count=summary['paid_referrals_count'])
+        # + '\n'
+        # + texts.t(
+        #     'REFERRAL_STATS_FIRST_TOPUPS',
+        #     '• Сделали первое пополнение: <b>{count}</b>',
+        # ).format(count=summary['paid_referrals_count'])
         + '\n'
         + texts.t(
             'REFERRAL_STATS_ACTIVE',
             '• Активных рефералов: <b>{count}</b>',
         ).format(count=summary['active_referrals_count'])
-        + '\n'
-        + texts.t(
-            'REFERRAL_STATS_CONVERSION',
-            '• Конверсия: <b>{rate}%</b>',
-        ).format(rate=summary['conversion_rate'])
-        + '\n'
-        + texts.t(
-            'REFERRAL_STATS_TOTAL_EARNED',
-            '• Заработано всего: <b>{amount}</b>',
-        ).format(amount=texts.format_price(summary['total_earned_kopeks']))
-        + '\n'
-        + texts.t(
-            'REFERRAL_STATS_MONTH_EARNED',
-            '• За последний месяц: <b>{amount}</b>',
-        ).format(amount=texts.format_price(summary['month_earned_kopeks']))
+        # + '\n'
+        # + texts.t(
+        #     'REFERRAL_STATS_CONVERSION',
+        #     '• Конверсия: <b>{rate}%</b>',
+        # ).format(rate=summary['conversion_rate'])
+        # + '\n'
+        # + texts.t(
+        #     'REFERRAL_STATS_TOTAL_EARNED',
+        #     '• Заработано всего: <b>{amount}</b>',
+        # ).format(amount=texts.format_price(summary['total_earned_kopeks']))
+        # + '\n'
+        # + texts.t(
+        #     'REFERRAL_STATS_MONTH_EARNED',
+        #     '• За последний месяц: <b>{amount}</b>',
+        # ).format(amount=texts.format_price(summary['month_earned_kopeks']))
         + '\n\n'
         + texts.t('REFERRAL_REWARDS_HEADER', '🎁 <b>Как работают награды:</b>')
     )
@@ -212,13 +212,13 @@ async def show_referral_info(
             referral_text += '\n'
 
     if summary['earnings_by_type']:
-        referral_text += (
-            texts.t(
-                'REFERRAL_EARNINGS_BY_TYPE_HEADER',
-                '📈 <b>Доходы по типам:</b>',
-            )
-            + '\n'
-        )
+        # referral_text += (
+        #     texts.t(
+        #         'REFERRAL_EARNINGS_BY_TYPE_HEADER',
+        #         '📈 <b>Доходы по типам:</b>',
+        #     )
+        #     + '\n'
+        # )
 
         if 'referral_first_topup' in summary['earnings_by_type']:
             data = summary['earnings_by_type']['referral_first_topup']
@@ -264,10 +264,10 @@ async def show_referral_info(
 
         referral_text += '\n'
 
-    referral_text += texts.t(
-        'REFERRAL_INVITE_FOOTER',
-        '📢 Приглашайте друзей и зарабатывайте!',
-    )
+    # referral_text += texts.t(
+    #     'REFERRAL_INVITE_FOOTER',
+    #     '📢 Приглашайте друзей и зарабатывайте!',
+    # )
 
     await edit_or_answer_photo(
         callback,

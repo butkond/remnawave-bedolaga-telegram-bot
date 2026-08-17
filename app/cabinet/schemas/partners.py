@@ -188,6 +188,7 @@ class AdminPartnerItem(BaseModel):
     commission_percent: int | None = None
     total_referrals: int = 0
     total_earnings_kopeks: int = 0
+    traffic_reward_days_earned: int = 0
     balance_kopeks: int = 0
     partner_status: str
     created_at: datetime
@@ -229,6 +230,11 @@ class AdminPartnerDetailResponse(BaseModel):
     earnings_today: int = 0
     earnings_week: int = 0
     earnings_month: int = 0
+    traffic_qualified_referrals: int = 0
+    traffic_rewarded_referrals: int = 0
+    traffic_unrewarded_referrals: int = 0
+    traffic_reward_days_earned: int = 0
+    traffic_reward_grants_count: int = 0
     conversion_to_paid: float = 0.0
     campaigns: list[CampaignSummary] = []
     created_at: datetime
@@ -238,3 +244,13 @@ class AdminUpdateCommissionRequest(BaseModel):
     """Request to update partner commission."""
 
     commission_percent: int = Field(..., ge=1, le=100)
+
+
+class AdminPartnerStatsResponse(BaseModel):
+    """Overall partner statistics."""
+
+    total_partners: int = 0
+    pending_applications: int = 0
+    total_referrals: int = 0
+    total_earnings_kopeks: int = 0
+    total_traffic_reward_days: int = 0

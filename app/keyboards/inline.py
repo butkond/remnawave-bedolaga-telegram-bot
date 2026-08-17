@@ -2245,22 +2245,22 @@ def get_referral_keyboard(language: str = DEFAULT_LANGUAGE, current_mode: str | 
     texts = get_texts(language)
 
     keyboard = [
-        [
-            InlineKeyboardButton(
-                text=texts.t('CREATE_INVITE_BUTTON', '📝 Создать приглашение'), callback_data='referral_create_invite'
-            )
-        ],
+        # [
+        #     InlineKeyboardButton(
+        #         text=texts.t('CREATE_INVITE_BUTTON', '📝 Создать приглашение'), callback_data='referral_create_invite'
+        #     )
+        # ],
         [InlineKeyboardButton(text=texts.t('SHOW_QR_BUTTON', '📱 Показать QR код'), callback_data='referral_show_qr')],
         [
             InlineKeyboardButton(
                 text=texts.t('REFERRAL_LIST_BUTTON', '👥 Список рефералов'), callback_data='referral_list'
             )
         ],
-        [
-            InlineKeyboardButton(
-                text=texts.t('REFERRAL_ANALYTICS_BUTTON', '📊 Аналитика'), callback_data='referral_analytics'
-            )
-        ],
+        # [
+        #     InlineKeyboardButton(
+        #         text=texts.t('REFERRAL_ANALYTICS_BUTTON', '📊 Аналитика'), callback_data='referral_analytics'
+        #     )
+        # ],
     ]
 
     if settings.is_referral_reward_mode_selectable():

@@ -30,7 +30,19 @@ from app.utils.user_utils import (
 logger = structlog.get_logger(__name__)
 
 
-async def show_referral_info(callback: types.CallbackQuery, db_user: User, db: AsyncSession):
+def _referral_mode_label(texts, mode: str) -> str:
+    if mode == 'traffic_reward':
+        return texts.t('REFERRAL_MODE_TRAFFIC_LABEL', 'бесплатные дни за подключения')
+    return texts.t('REFERRAL_MODE_BALANCE_LABEL', 'бонусы за пополнения')
+
+
+async def show_referral_info(
+    callback: types.CallbackQuery,
+    db_user: User,
+    db: AsyncSession,
+    *,
+    answer_callback: bool = True,
+):
     # Проверяем, включена ли реферальная программа
     if not settings.is_referral_program_enabled():
         texts = get_texts(db_user.language)
@@ -48,6 +60,8 @@ async def show_referral_info(callback: types.CallbackQuery, db_user: User, db: A
     bot_username = (await callback.bot.get_me()).username
     bot_referral_link = settings.get_bot_referral_link(db_user.referral_code, bot_username)
     cabinet_referral_link = settings.get_cabinet_referral_link(db_user.referral_code)
+    available_modes = settings.get_available_referral_reward_modes()
+    current_mode = settings.get_user_referral_reward_mode(db_user)
 
     referral_text = (
         texts.t('REFERRAL_PROGRAM_TITLE', '👥 <b>Реферальная программа</b>')
@@ -58,65 +72,83 @@ async def show_referral_info(callback: types.CallbackQuery, db_user: User, db: A
             'REFERRAL_STATS_INVITED',
             '• Приглашено пользователей: <b>{count}</b>',
         ).format(count=summary['invited_count'])
-        + '\n'
-        + texts.t(
-            'REFERRAL_STATS_FIRST_TOPUPS',
-            '• Сделали первое пополнение: <b>{count}</b>',
-        ).format(count=summary['paid_referrals_count'])
+        # + '\n'
+        # + texts.t(
+        #     'REFERRAL_STATS_FIRST_TOPUPS',
+        #     '• Сделали первое пополнение: <b>{count}</b>',
+        # ).format(count=summary['paid_referrals_count'])
         + '\n'
         + texts.t(
             'REFERRAL_STATS_ACTIVE',
             '• Активных рефералов: <b>{count}</b>',
         ).format(count=summary['active_referrals_count'])
-        + '\n'
-        + texts.t(
-            'REFERRAL_STATS_CONVERSION',
-            '• Конверсия: <b>{rate}%</b>',
-        ).format(rate=summary['conversion_rate'])
-        + '\n'
-        + texts.t(
-            'REFERRAL_STATS_TOTAL_EARNED',
-            '• Заработано всего: <b>{amount}</b>',
-        ).format(amount=texts.format_price(summary['total_earned_kopeks']))
-        + '\n'
-        + texts.t(
-            'REFERRAL_STATS_MONTH_EARNED',
-            '• За последний месяц: <b>{amount}</b>',
-        ).format(amount=texts.format_price(summary['month_earned_kopeks']))
+        # + '\n'
+        # + texts.t(
+        #     'REFERRAL_STATS_CONVERSION',
+        #     '• Конверсия: <b>{rate}%</b>',
+        # ).format(rate=summary['conversion_rate'])
+        # + '\n'
+        # + texts.t(
+        #     'REFERRAL_STATS_TOTAL_EARNED',
+        #     '• Заработано всего: <b>{amount}</b>',
+        # ).format(amount=texts.format_price(summary['total_earned_kopeks']))
+        # + '\n'
+        # + texts.t(
+        #     'REFERRAL_STATS_MONTH_EARNED',
+        #     '• За последний месяц: <b>{amount}</b>',
+        # ).format(amount=texts.format_price(summary['month_earned_kopeks']))
         + '\n\n'
         + texts.t('REFERRAL_REWARDS_HEADER', '🎁 <b>Как работают награды:</b>')
     )
 
-    if settings.REFERRAL_FIRST_TOPUP_BONUS_KOPEKS > 0:
+    if available_modes:
         referral_text += '\n' + texts.t(
-            'REFERRAL_REWARD_NEW_USER',
-            '• Новый пользователь получает: <b>{bonus}</b> при первом пополнении от <b>{minimum}</b>',
+            'REFERRAL_ACTIVE_MODE',
+            '• Активная система: <b>{mode}</b>',
+        ).format(mode=_referral_mode_label(texts, current_mode))
+
+    if 'balance_commission' in available_modes:
+        if settings.REFERRAL_FIRST_TOPUP_BONUS_KOPEKS > 0:
+            referral_text += '\n' + texts.t(
+                'REFERRAL_REWARD_NEW_USER',
+                '• Новый пользователь получает: <b>{bonus}</b> при первом пополнении от <b>{minimum}</b>',
+            ).format(
+                bonus=texts.format_price(settings.REFERRAL_FIRST_TOPUP_BONUS_KOPEKS),
+                minimum=texts.format_price(settings.REFERRAL_MINIMUM_TOPUP_KOPEKS),
+            )
+
+        if settings.REFERRAL_INVITER_BONUS_KOPEKS > 0:
+            referral_text += '\n' + texts.t(
+                'REFERRAL_REWARD_INVITER',
+                '• Вы получаете при первом пополнении реферала: <b>{bonus}</b>',
+            ).format(bonus=texts.format_price(settings.REFERRAL_INVITER_BONUS_KOPEKS))
+
+        if settings.REFERRAL_MAX_COMMISSION_PAYMENTS > 0:
+            commission_line = texts.t(
+                'REFERRAL_REWARD_COMMISSION_LIMITED',
+                '• Комиссия с первых {max_payments} пополнений реферала: <b>{percent}%</b>',
+            ).format(
+                percent=get_effective_referral_commission_percent(db_user),
+                max_payments=settings.REFERRAL_MAX_COMMISSION_PAYMENTS,
+            )
+        else:
+            commission_line = texts.t(
+                'REFERRAL_REWARD_COMMISSION',
+                '• Комиссия с каждого пополнения реферала: <b>{percent}%</b>',
+            ).format(percent=get_effective_referral_commission_percent(db_user))
+
+        referral_text += '\n' + commission_line
+
+    if 'traffic_reward' in available_modes:
+        referral_text += '\n' + texts.t(
+            'REFERRAL_REWARD_TRAFFIC',
+            '• За {required} рефералов, впервые подключившихся к VPN: <b>+{days} дн.</b> подписки',
         ).format(
-            bonus=texts.format_price(settings.REFERRAL_FIRST_TOPUP_BONUS_KOPEKS),
-            minimum=texts.format_price(settings.REFERRAL_MINIMUM_TOPUP_KOPEKS),
+            required=settings.REFERRAL_TRAFFIC_REWARD_REQUIRED_REFERRALS,
+            days=settings.REFERRAL_TRAFFIC_REWARD_DAYS,
         )
 
-    if settings.REFERRAL_INVITER_BONUS_KOPEKS > 0:
-        referral_text += '\n' + texts.t(
-            'REFERRAL_REWARD_INVITER',
-            '• Вы получаете при первом пополнении реферала: <b>{bonus}</b>',
-        ).format(bonus=texts.format_price(settings.REFERRAL_INVITER_BONUS_KOPEKS))
-
-    if settings.REFERRAL_MAX_COMMISSION_PAYMENTS > 0:
-        commission_line = texts.t(
-            'REFERRAL_REWARD_COMMISSION_LIMITED',
-            '• Комиссия с первых {max_payments} пополнений реферала: <b>{percent}%</b>',
-        ).format(
-            percent=get_effective_referral_commission_percent(db_user),
-            max_payments=settings.REFERRAL_MAX_COMMISSION_PAYMENTS,
-        )
-    else:
-        commission_line = texts.t(
-            'REFERRAL_REWARD_COMMISSION',
-            '• Комиссия с каждого пополнения реферала: <b>{percent}%</b>',
-        ).format(percent=get_effective_referral_commission_percent(db_user))
-
-    referral_text += '\n' + commission_line + '\n\n'
+    referral_text += '\n\n'
 
     # Show bot link
     referral_text += (
@@ -180,13 +212,13 @@ async def show_referral_info(callback: types.CallbackQuery, db_user: User, db: A
             referral_text += '\n'
 
     if summary['earnings_by_type']:
-        referral_text += (
-            texts.t(
-                'REFERRAL_EARNINGS_BY_TYPE_HEADER',
-                '📈 <b>Доходы по типам:</b>',
-            )
-            + '\n'
-        )
+        # referral_text += (
+        #     texts.t(
+        #         'REFERRAL_EARNINGS_BY_TYPE_HEADER',
+        #         '📈 <b>Доходы по типам:</b>',
+        #     )
+        #     + '\n'
+        # )
 
         if 'referral_first_topup' in summary['earnings_by_type']:
             data = summary['earnings_by_type']['referral_first_topup']
@@ -232,17 +264,36 @@ async def show_referral_info(callback: types.CallbackQuery, db_user: User, db: A
 
         referral_text += '\n'
 
-    referral_text += texts.t(
-        'REFERRAL_INVITE_FOOTER',
-        '📢 Приглашайте друзей и зарабатывайте!',
-    )
+    # referral_text += texts.t(
+    #     'REFERRAL_INVITE_FOOTER',
+    #     '📢 Приглашайте друзей и зарабатывайте!',
+    # )
 
     await edit_or_answer_photo(
         callback,
         referral_text,
-        get_referral_keyboard(db_user.language),
+        get_referral_keyboard(db_user.language, current_mode),
     )
-    await callback.answer()
+    if answer_callback:
+        await callback.answer()
+
+
+async def set_referral_reward_mode(callback: types.CallbackQuery, db_user: User, db: AsyncSession):
+    texts = get_texts(db_user.language)
+    mode = callback.data.removeprefix('referral_mode_')
+
+    if not settings.is_referral_reward_mode_selectable() or not settings.is_referral_reward_mode_available(mode):
+        await callback.answer(texts.t('REFERRAL_MODE_NOT_AVAILABLE', 'Этот режим сейчас недоступен'), show_alert=True)
+        return
+
+    db_user.referral_reward_mode = mode
+    await db.commit()
+    await callback.answer(
+        texts.t('REFERRAL_MODE_UPDATED', 'Реферальная система изменена: {mode}').format(
+            mode=_referral_mode_label(texts, mode)
+        )
+    )
+    await show_referral_info(callback, db_user, db, answer_callback=False)
 
 
 async def show_referral_qr(
@@ -331,6 +382,8 @@ async def show_detailed_referral_list(callback: types.CallbackQuery, db_user: Us
         + '\n\n'
     )
 
+    show_traffic_reward_days = 'traffic_reward' in settings.get_available_referral_reward_modes()
+
     for i, referral in enumerate(referrals_data['referrals'], 1):
         status_emoji = '🟢' if referral['status'] == 'active' else '🔴'
 
@@ -357,6 +410,14 @@ async def show_detailed_referral_list(callback: types.CallbackQuery, db_user: Us
             ).format(amount=texts.format_price(referral['total_earned_kopeks']))
             + '\n'
         )
+        if show_traffic_reward_days:
+            text += (
+                texts.t(
+                    'REFERRAL_LIST_ITEM_TRAFFIC_DAYS_EARNED',
+                    '   🎁 Заработано дней с него: {days}',
+                ).format(days=referral.get('traffic_reward_days_earned', 0))
+                + '\n'
+            )
         text += (
             texts.t(
                 'REFERRAL_LIST_ITEM_REGISTERED',
@@ -904,6 +965,8 @@ async def cancel_withdrawal_request(callback: types.CallbackQuery, db_user: User
 
 def register_handlers(dp: Dispatcher):
     dp.callback_query.register(show_referral_info, F.data == 'menu_referrals')
+
+    dp.callback_query.register(set_referral_reward_mode, F.data.startswith('referral_mode_'))
 
     dp.callback_query.register(create_invite_message, F.data == 'referral_create_invite')
 

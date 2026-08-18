@@ -10,11 +10,13 @@ from sqlalchemy import desc, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.database.crud.referral_traffic_reward import get_traffic_reward_summary
 from app.database.models import (
     AdvertisingCampaign,
     PartnerApplication,
     PartnerStatus,
     ReferralEarning,
+    ReferralTrafficRewardGrant,
     User,
 )
 from app.services.partner_application_service import partner_application_service
@@ -28,6 +30,7 @@ from ..schemas.partners import (
     AdminPartnerDetailResponse,
     AdminPartnerItem,
     AdminPartnerListResponse,
+    AdminPartnerStatsResponse,
     AdminRejectRequest,
     AdminUpdateCommissionRequest,
     CampaignSummary,
@@ -49,6 +52,13 @@ class PartnerSettingsResponse(BaseModel):
     withdrawal_requisites_text: str
     partner_section_visible: bool
     referral_program_enabled: bool
+    available_reward_modes: list[str] = Field(default_factory=list)
+    default_reward_mode: str = 'balance_commission'
+    reward_mode_selectable: bool = False
+    traffic_rewards_enabled: bool = False
+    traffic_reward_required_referrals: int = 1
+    traffic_reward_days: int = 0
+    traffic_reward_qualification_window_days: int = 0
     first_payment_commission_percent: int | None = None
     recurring_commission_tiers: str = ''
 
@@ -72,6 +82,13 @@ def _build_partner_settings_response() -> PartnerSettingsResponse:
         withdrawal_requisites_text=settings.REFERRAL_WITHDRAWAL_REQUISITES_TEXT,
         partner_section_visible=settings.REFERRAL_PARTNER_SECTION_VISIBLE,
         referral_program_enabled=settings.REFERRAL_PROGRAM_ENABLED,
+        available_reward_modes=settings.get_available_referral_reward_modes(),
+        default_reward_mode=settings.get_default_referral_reward_mode(),
+        reward_mode_selectable=settings.is_referral_reward_mode_selectable(),
+        traffic_rewards_enabled=settings.REFERRAL_TRAFFIC_REWARDS_ENABLED,
+        traffic_reward_required_referrals=settings.REFERRAL_TRAFFIC_REWARD_REQUIRED_REFERRALS,
+        traffic_reward_days=settings.REFERRAL_TRAFFIC_REWARD_DAYS,
+        traffic_reward_qualification_window_days=settings.REFERRAL_TRAFFIC_REWARD_QUALIFICATION_WINDOW_DAYS,
         first_payment_commission_percent=settings.REFERRAL_FIRST_PAYMENT_COMMISSION_PERCENT,
         recurring_commission_tiers=settings.REFERRAL_RECURRING_COMMISSION_TIERS,
     )
@@ -325,7 +342,7 @@ async def reject_application(
 # ==================== Stats (static paths) ====================
 
 
-@router.get('/stats')
+@router.get('/stats', response_model=AdminPartnerStatsResponse)
 async def get_partner_stats(
     admin: User = Depends(require_permission('partners:read')),
     db: AsyncSession = Depends(get_cabinet_db),
@@ -341,13 +358,17 @@ async def get_partner_stats(
     )
     total_referrals = await db.execute(select(func.count()).select_from(User).where(User.referred_by_id.isnot(None)))
     total_earnings = await db.execute(select(func.coalesce(func.sum(ReferralEarning.amount_kopeks), 0)))
+    total_traffic_reward_days = await db.execute(
+        select(func.coalesce(func.sum(ReferralTrafficRewardGrant.reward_days), 0))
+    )
 
-    return {
-        'total_partners': total_partners.scalar() or 0,
-        'pending_applications': pending_apps.scalar() or 0,
-        'total_referrals': total_referrals.scalar() or 0,
-        'total_earnings_kopeks': total_earnings.scalar() or 0,
-    }
+    return AdminPartnerStatsResponse(
+        total_partners=total_partners.scalar() or 0,
+        pending_applications=pending_apps.scalar() or 0,
+        total_referrals=total_referrals.scalar() or 0,
+        total_earnings_kopeks=total_earnings.scalar() or 0,
+        total_traffic_reward_days=total_traffic_reward_days.scalar() or 0,
+    )
 
 
 # ==================== Partners list ====================
@@ -379,6 +400,7 @@ async def list_partners(
     partner_ids = [u.id for u in partners]
     earnings_map: dict[int, int] = {}
     referral_count_map: dict[int, int] = {}
+    traffic_reward_days_map: dict[int, int] = {}
 
     if partner_ids:
         earnings_result = await db.execute(
@@ -395,6 +417,16 @@ async def list_partners(
         )
         referral_count_map = {row[0]: row[1] for row in referral_result.all()}
 
+        traffic_reward_days_result = await db.execute(
+            select(
+                ReferralTrafficRewardGrant.referrer_id,
+                func.coalesce(func.sum(ReferralTrafficRewardGrant.reward_days), 0),
+            )
+            .where(ReferralTrafficRewardGrant.referrer_id.in_(partner_ids))
+            .group_by(ReferralTrafficRewardGrant.referrer_id)
+        )
+        traffic_reward_days_map = {row[0]: int(row[1] or 0) for row in traffic_reward_days_result.all()}
+
     items = []
     for user in partners:
         items.append(
@@ -406,6 +438,7 @@ async def list_partners(
                 commission_percent=user.referral_commission_percent,
                 total_referrals=referral_count_map.get(user.id, 0),
                 total_earnings_kopeks=earnings_map.get(user.id, 0),
+                traffic_reward_days_earned=traffic_reward_days_map.get(user.id, 0),
                 balance_kopeks=user.balance_kopeks,
                 partner_status=user.partner_status,
                 created_at=user.created_at,
@@ -458,6 +491,7 @@ async def get_partner_detail(
 
     summary = stats['summary']
     earnings = stats['earnings']
+    traffic_summary = await get_traffic_reward_summary(db, referrer_id=user_id)
 
     return AdminPartnerDetailResponse(
         user_id=user.id,
@@ -474,6 +508,11 @@ async def get_partner_detail(
         earnings_today=earnings['today_kopeks'],
         earnings_week=earnings['week_kopeks'],
         earnings_month=earnings['month_kopeks'],
+        traffic_qualified_referrals=traffic_summary['qualified_referrals_count'],
+        traffic_rewarded_referrals=traffic_summary['rewarded_qualified_count'],
+        traffic_unrewarded_referrals=traffic_summary['unrewarded_qualified_count'],
+        traffic_reward_days_earned=traffic_summary['traffic_reward_days_earned'],
+        traffic_reward_grants_count=traffic_summary['traffic_reward_grants_count'],
         conversion_to_paid=summary['conversion_to_paid_percent'],
         campaigns=campaign_list,
         created_at=user.created_at,

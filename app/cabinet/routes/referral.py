@@ -3,12 +3,18 @@
 import math
 
 import structlog
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
+from app.database.crud.referral_traffic_reward import (
+    get_attribution_modes_by_referral,
+    get_traffic_qualifications_by_referral,
+    get_traffic_reward_days_by_referral,
+    get_traffic_reward_summary,
+)
 from app.database.models import (
     AdvertisingCampaign,
     ReferralEarning,
@@ -26,6 +32,7 @@ from ..schemas.referral import (
     ReferralInfoResponse,
     ReferralItemResponse,
     ReferralListResponse,
+    ReferralRewardModeUpdateRequest,
     ReferralTermsResponse,
 )
 
@@ -94,6 +101,8 @@ async def get_referral_info(
     # Build referral links
     referral_link = (settings.get_cabinet_referral_link(user.referral_code) or '') if user.referral_code else ''
     bot_referral_link = settings.get_bot_referral_link(user.referral_code) if user.referral_code else ''
+    available_reward_modes = settings.get_available_referral_reward_modes()
+    traffic_summary = await get_traffic_reward_summary(db, referrer_id=user.id)
 
     return ReferralInfoResponse(
         referral_code=user.referral_code or '',
@@ -104,6 +113,14 @@ async def get_referral_info(
         total_earnings_kopeks=total_earnings,
         total_earnings_rubles=total_earnings / 100,
         commission_percent=commission_percent,
+        referral_reward_mode=settings.get_user_referral_reward_mode(user),
+        available_reward_modes=available_reward_modes,
+        reward_mode_selectable=settings.is_referral_reward_mode_selectable(),
+        traffic_qualified_referrals=traffic_summary['qualified_referrals_count'],
+        traffic_rewarded_referrals=traffic_summary['rewarded_qualified_count'],
+        traffic_unrewarded_referrals=traffic_summary['unrewarded_qualified_count'],
+        traffic_reward_days_earned=traffic_summary['traffic_reward_days_earned'],
+        traffic_reward_grants_count=traffic_summary['traffic_reward_grants_count'],
         available_balance_kopeks=available_balance,
         available_balance_rubles=available_balance / 100,
         withdrawn_kopeks=withdrawn,
@@ -136,6 +153,26 @@ async def get_referral_list(
 
     result = await db.execute(query)
     referrals = result.scalars().all()
+    referral_ids = [referral.id for referral in referrals]
+
+    earnings_map: dict[int, int] = {}
+    if referral_ids:
+        earnings_result = await db.execute(
+            select(
+                ReferralEarning.referral_id,
+                func.coalesce(func.sum(ReferralEarning.amount_kopeks), 0).label('earned'),
+            )
+            .where(
+                ReferralEarning.user_id == user.id,
+                ReferralEarning.referral_id.in_(referral_ids),
+            )
+            .group_by(ReferralEarning.referral_id)
+        )
+        earnings_map = {int(row.referral_id): int(row.earned or 0) for row in earnings_result.all()}
+
+    attribution_modes = await get_attribution_modes_by_referral(db, referral_ids=referral_ids)
+    traffic_qualifications = await get_traffic_qualifications_by_referral(db, referral_ids=referral_ids)
+    traffic_reward_days = await get_traffic_reward_days_by_referral(db, referrer_id=user.id, referral_ids=referral_ids)
 
     items = [
         ReferralItemResponse(
@@ -145,6 +182,12 @@ async def get_referral_list(
             created_at=r.created_at,
             has_subscription=bool(getattr(r, 'subscriptions', None)),
             has_paid=r.has_had_paid_subscription,
+            total_earned_kopeks=earnings_map.get(r.id, 0),
+            total_earned_rubles=earnings_map.get(r.id, 0) / 100,
+            reward_mode_at_registration=attribution_modes.get(r.id),
+            traffic_qualified=r.id in traffic_qualifications,
+            traffic_qualified_at=traffic_qualifications[r.id].qualified_at if r.id in traffic_qualifications else None,
+            traffic_reward_days_earned=traffic_reward_days.get(r.id, 0),
         )
         for r in referrals
     ]
@@ -241,6 +284,9 @@ async def get_referral_terms():
     """Get referral program terms."""
     return ReferralTermsResponse(
         is_enabled=settings.is_referral_program_enabled(),
+        available_reward_modes=settings.get_available_referral_reward_modes(),
+        default_reward_mode=settings.get_default_referral_reward_mode(),
+        reward_mode_selectable=settings.is_referral_reward_mode_selectable(),
         commission_percent=settings.REFERRAL_COMMISSION_PERCENT,
         first_payment_commission_percent=settings.REFERRAL_FIRST_PAYMENT_COMMISSION_PERCENT,
         recurring_commission_tiers=settings.REFERRAL_RECURRING_COMMISSION_TIERS,
@@ -252,4 +298,34 @@ async def get_referral_terms():
         inviter_bonus_rubles=settings.REFERRAL_INVITER_BONUS_KOPEKS / 100,
         max_commission_payments=settings.REFERRAL_MAX_COMMISSION_PAYMENTS,
         partner_section_visible=settings.REFERRAL_PARTNER_SECTION_VISIBLE,
+        traffic_rewards_enabled=settings.REFERRAL_TRAFFIC_REWARDS_ENABLED,
+        traffic_reward_required_referrals=settings.REFERRAL_TRAFFIC_REWARD_REQUIRED_REFERRALS,
+        traffic_reward_days=settings.REFERRAL_TRAFFIC_REWARD_DAYS,
+        traffic_reward_qualification_window_days=settings.REFERRAL_TRAFFIC_REWARD_QUALIFICATION_WINDOW_DAYS,
     )
+
+
+@router.patch('/reward-mode', response_model=ReferralInfoResponse)
+async def update_referral_reward_mode(
+    request: ReferralRewardModeUpdateRequest,
+    user: User = Depends(get_current_cabinet_user),
+    db: AsyncSession = Depends(get_cabinet_db),
+):
+    """Update current user's active referral reward attribution mode."""
+    mode = (request.mode or '').strip().lower()
+    if not settings.is_referral_reward_mode_selectable():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Referral reward mode selection is not available',
+        )
+    if not settings.is_referral_reward_mode_available(mode):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Referral reward mode is not available',
+        )
+
+    user.referral_reward_mode = mode
+    await db.commit()
+    await db.refresh(user)
+
+    return await get_referral_info(user=user, db=db)

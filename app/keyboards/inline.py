@@ -2241,27 +2241,44 @@ def get_autopay_notification_keyboard(subscription_id: int, language: str = DEFA
     )
 
 
-def get_referral_keyboard(language: str = DEFAULT_LANGUAGE) -> InlineKeyboardMarkup:
+def get_referral_keyboard(language: str = DEFAULT_LANGUAGE, current_mode: str | None = None) -> InlineKeyboardMarkup:
     texts = get_texts(language)
 
     keyboard = [
-        [
-            InlineKeyboardButton(
-                text=texts.t('CREATE_INVITE_BUTTON', '📝 Создать приглашение'), callback_data='referral_create_invite'
-            )
-        ],
+        # [
+        #     InlineKeyboardButton(
+        #         text=texts.t('CREATE_INVITE_BUTTON', '📝 Создать приглашение'), callback_data='referral_create_invite'
+        #     )
+        # ],
         [InlineKeyboardButton(text=texts.t('SHOW_QR_BUTTON', '📱 Показать QR код'), callback_data='referral_show_qr')],
         [
             InlineKeyboardButton(
                 text=texts.t('REFERRAL_LIST_BUTTON', '👥 Список рефералов'), callback_data='referral_list'
             )
         ],
-        [
-            InlineKeyboardButton(
-                text=texts.t('REFERRAL_ANALYTICS_BUTTON', '📊 Аналитика'), callback_data='referral_analytics'
-            )
-        ],
+        # [
+        #     InlineKeyboardButton(
+        #         text=texts.t('REFERRAL_ANALYTICS_BUTTON', '📊 Аналитика'), callback_data='referral_analytics'
+        #     )
+        # ],
     ]
+
+    if settings.is_referral_reward_mode_selectable():
+        active_mode = current_mode or settings.get_default_referral_reward_mode()
+        balance_prefix = '✅ ' if active_mode == 'balance_commission' else ''
+        traffic_prefix = '✅ ' if active_mode == 'traffic_reward' else ''
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    text=balance_prefix + texts.t('REFERRAL_MODE_BALANCE_BUTTON', '💰 За пополнения'),
+                    callback_data='referral_mode_balance_commission',
+                ),
+                InlineKeyboardButton(
+                    text=traffic_prefix + texts.t('REFERRAL_MODE_TRAFFIC_BUTTON', '🎁 За подключения'),
+                    callback_data='referral_mode_traffic_reward',
+                ),
+            ]
+        )
 
     # Добавляем кнопку вывода, если включена
     if settings.is_referral_withdrawal_enabled():

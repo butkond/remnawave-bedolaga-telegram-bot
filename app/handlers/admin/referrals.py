@@ -34,6 +34,10 @@ async def show_referral_statistics(callback: types.CallbackQuery, db_user: User,
         avg_per_referrer = 0
         if stats.get('active_referrers', 0) > 0:
             avg_per_referrer = stats.get('total_paid_kopeks', 0) / stats['active_referrers']
+        show_traffic_reward_days = 'traffic_reward' in settings.get_available_referral_reward_modes()
+        traffic_total_line = ''
+        if show_traffic_reward_days:
+            traffic_total_line = f'- Бесплатных дней выдано: {stats.get("total_traffic_reward_days", 0)}\n'
 
         current_time = datetime.now(UTC).strftime('%H:%M:%S')
 
@@ -44,7 +48,7 @@ async def show_referral_statistics(callback: types.CallbackQuery, db_user: User,
 - Пользователей с рефералами: {stats.get('users_with_referrals', 0)}
 - Активных рефереров: {stats.get('active_referrers', 0)}
 - Выплачено всего: {settings.format_price(stats.get('total_paid_kopeks', 0))}
-
+{traffic_total_line}
 <b>За период:</b>
 - Сегодня: {settings.format_price(stats.get('today_earnings_kopeks', 0))}
 - За неделю: {settings.format_price(stats.get('week_earnings_kopeks', 0))}
@@ -60,11 +64,13 @@ async def show_referral_statistics(callback: types.CallbackQuery, db_user: User,
         if top_referrers:
             for i, referrer in enumerate(top_referrers[:5], 1):
                 earned = referrer.get('total_earned_kopeks', 0)
+                traffic_days = referrer.get('traffic_reward_days', 0)
                 count = referrer.get('referrals_count', 0)
                 user_id = referrer.get('user_id', 'N/A')
 
                 if count > 0:
-                    text += f'{i}. ID {user_id}: {settings.format_price(earned)} ({count} реф.)\n'
+                    traffic_part = f' | 🎁 {traffic_days} дн.' if show_traffic_reward_days else ''
+                    text += f'{i}. ID {user_id}: {settings.format_price(earned)}{traffic_part} ({count} реф.)\n'
                 else:
                     logger.warning('Реферер имеет рефералов, но есть в топе', user_id=user_id, count=count)
         else:
@@ -200,6 +206,7 @@ async def _show_top_referrers_filtered(callback: types.CallbackQuery, db: AsyncS
     """Внутренняя функция отображения топа с фильтрами."""
     try:
         top_referrers = await get_top_referrers_by_period(db, period=period, sort_by=sort_by)
+        show_traffic_reward_days = 'traffic_reward' in settings.get_available_referral_reward_modes()
 
         period_text = 'за неделю' if period == 'week' else 'за месяц'
         sort_text = 'по заработку' if sort_by == 'earnings' else 'по приглашённым'
@@ -210,6 +217,7 @@ async def _show_top_referrers_filtered(callback: types.CallbackQuery, db: AsyncS
         if top_referrers:
             for i, referrer in enumerate(top_referrers[:20], 1):
                 earned = referrer.get('earnings_kopeks', 0)
+                traffic_days = referrer.get('traffic_reward_days', 0)
                 count = referrer.get('invited_count', 0)
                 display_name = referrer.get('display_name', 'N/A')
                 username = referrer.get('username', '')
@@ -234,12 +242,13 @@ async def _show_top_referrers_filtered(callback: types.CallbackQuery, db: AsyncS
                     emoji = '🥉 '
 
                 # Выделяем основную метрику в зависимости от сортировки
+                traffic_part = f' | 🎁 {traffic_days} дн.' if show_traffic_reward_days else ''
                 if sort_by == 'invited':
                     text += f'{emoji}{i}. {display_text}\n'
-                    text += f'   👥 <b>{count} приглашённых</b> | 💰 {settings.format_price(earned)}\n\n'
+                    text += f'   👥 <b>{count} приглашённых</b> | 💰 {settings.format_price(earned)}{traffic_part}\n\n'
                 else:
                     text += f'{emoji}{i}. {display_text}\n'
-                    text += f'   💰 <b>{settings.format_price(earned)}</b> | 👥 {count} приглашённых\n\n'
+                    text += f'   💰 <b>{settings.format_price(earned)}</b>{traffic_part} | 👥 {count} приглашённых\n\n'
         else:
             text += 'Нет данных за выбранный период\n'
 

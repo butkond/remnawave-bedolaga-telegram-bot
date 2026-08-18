@@ -764,6 +764,7 @@
     "ADMIN_USER_REFERRAL_COMMISSION_INVALID": "❌ 请输入0到100之间的数字或“标准”",
     "ADMIN_USER_REFERRALS_LIST_HEADER": "<b>推荐列表：</b>",
     "ADMIN_USER_REFERRALS_LIST_ITEM": "•{name}(ID:<code>{telegram_id}</code>{username_part})",
+    "ADMIN_USER_REFERRALS_LIST_ITEM_TRAFFIC_DAYS": "  🎁免费天数：{days}",
     "ADMIN_USER_REFERRALS_LIST_TRUNCATED": "•…以及其他{count}个推荐",
     "ADMIN_USER_REFERRALS_EMPTY": "暂无推荐。",
     "ADMIN_USER_REFERRALS_EDIT_HINT": "✏️要编辑列表，请点击下方的“✏️编辑”。",
@@ -1265,6 +1266,7 @@
     "REFERRAL_LIST_ITEM_ACTIVITY": "🕐活跃：{days}天前",
     "REFERRAL_LIST_ITEM_ACTIVITY_LONG_AGO": "🕐活跃：很久以前",
     "REFERRAL_LIST_ITEM_EARNED": "💎从中赚取：{amount}",
+    "REFERRAL_LIST_ITEM_TRAFFIC_DAYS_EARNED": "🎁从中获得免费天数：{days}",
     "REFERRAL_LIST_ITEM_HEADER": "{index}.{status}<b>{name}</b>",
     "REFERRAL_LIST_ITEM_REGISTERED": "📅注册：{days}天前",
     "REFERRAL_LIST_ITEM_TOPUPS": "{emoji}充值：{count}",
@@ -1645,5 +1647,14 @@
     "WEBHOOK_DEVICE_DELETED": "📱 <b>设备已移除</b>\n\n设备已从订阅{tariff_label}中移除：<code>{device}</code>",
     "WEBHOOK_CLOSE_BUTTON": "✖️ 关闭",
     "BALANCE_TOPPED_UP_CART_SUFFICIENT": "✅ 余额已充值 {amount}！\n\n💰 当前余额：{balance}\n\n🛒 您有一个已保存的购物车，金额为 {cart_total}\n余额足够完成订购。",
-    "BALANCE_TOPPED_UP_CART_INSUFFICIENT": "✅ 余额已充值 {amount}！\n\n💰 当前余额：{balance}\n\n🛒 您有一个已保存的购物车，金额为 {cart_total}\n还差：{missing}"
+    "BALANCE_TOPPED_UP_CART_INSUFFICIENT": "✅ 余额已充值 {amount}！\n\n💰 当前余额：{balance}\n\n🛒 您有一个已保存的购物车，金额为 {cart_total}\n还差：{missing}",
+    "REFERRAL_TRAFFIC_REWARD_GRANTED": "🎁 <b>Referral reward granted!</b>\n\nYour invited users have started using the VPN.\nSubscription extended by <b>{reward_days} days</b>.\n\nLatest counted referral: <b>{referral_name}</b>",
+    "REFERRAL_ACTIVE_MODE": "• Active system: <b>{mode}</b>",
+    "REFERRAL_REWARD_TRAFFIC": "• For {required} referrals who connect to VPN for the first time: <b>{days} days</b> of subscription",
+    "REFERRAL_MODE_BALANCE_LABEL": "top-up rewards",
+    "REFERRAL_MODE_TRAFFIC_LABEL": "free days for connections",
+    "REFERRAL_MODE_BALANCE_BUTTON": "💰 Top-ups",
+    "REFERRAL_MODE_TRAFFIC_BUTTON": "🎁 Connections",
+    "REFERRAL_MODE_NOT_AVAILABLE": "This mode is currently unavailable",
+    "REFERRAL_MODE_UPDATED": "Referral system changed: {mode}"
 }

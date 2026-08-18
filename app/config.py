@@ -323,6 +323,14 @@ class Settings(BaseSettings):
     REFERRAL_PROGRAM_ENABLED: bool = True
     REFERRAL_NOTIFICATIONS_ENABLED: bool = True
     REFERRAL_NOTIFICATION_RETRY_ATTEMPTS: int = 3
+    REFERRAL_REWARD_MODES: str = 'balance_commission'
+    REFERRAL_DEFAULT_REWARD_MODE: str = 'balance_commission'
+    REFERRAL_TRAFFIC_REWARDS_ENABLED: bool = False
+    REFERRAL_TRAFFIC_REWARD_REQUIRED_REFERRALS: int = 3
+    REFERRAL_TRAFFIC_REWARD_DAYS: int = 7
+    REFERRAL_TRAFFIC_REWARD_QUALIFICATION_WINDOW_DAYS: int = 0
+    REFERRAL_TRAFFIC_REWARD_NOTIFY: bool = True
+    REFERRAL_MODE_SWITCH_COOLDOWN_HOURS: int = 24
 
     # Настройки вывода реферального баланса
     REFERRAL_WITHDRAWAL_ENABLED: bool = False  # Включить возможность вывода
@@ -3140,13 +3148,51 @@ class Settings(BaseSettings):
 
     def is_referral_withdrawal_enabled(self) -> bool:
         """Проверяет, включена ли функция вывода реферального баланса."""
-        return self.is_referral_program_enabled() and self.REFERRAL_WITHDRAWAL_ENABLED
+        return (
+            self.is_referral_program_enabled()
+            and self.REFERRAL_WITHDRAWAL_ENABLED
+            and self.is_referral_reward_mode_available('balance_commission')
+        )
 
     def is_referral_program_enabled(self) -> bool:
-        return bool(self.REFERRAL_PROGRAM_ENABLED)
+        return bool(self.REFERRAL_PROGRAM_ENABLED and self.get_available_referral_reward_modes())
 
     def is_referral_notifications_enabled(self) -> bool:
         return self.REFERRAL_NOTIFICATIONS_ENABLED
+
+    def get_available_referral_reward_modes(self) -> list[str]:
+        raw_modes = str(self.REFERRAL_REWARD_MODES or '').replace(';', ',').split(',')
+        modes: list[str] = []
+        for raw_mode in raw_modes:
+            mode = raw_mode.strip().lower()
+            if mode not in {'balance_commission', 'traffic_reward'}:
+                continue
+            if mode == 'traffic_reward' and not self.REFERRAL_TRAFFIC_REWARDS_ENABLED:
+                continue
+            if mode not in modes:
+                modes.append(mode)
+        return modes
+
+    def is_referral_reward_mode_available(self, mode: str | None) -> bool:
+        return bool(mode and mode in self.get_available_referral_reward_modes())
+
+    def get_default_referral_reward_mode(self) -> str:
+        available_modes = self.get_available_referral_reward_modes()
+        if not available_modes:
+            return 'balance_commission'
+        configured = str(self.REFERRAL_DEFAULT_REWARD_MODE or '').strip().lower()
+        if configured in available_modes:
+            return configured
+        return available_modes[0]
+
+    def get_user_referral_reward_mode(self, user) -> str:
+        user_mode = str(getattr(user, 'referral_reward_mode', '') or '').strip().lower()
+        if self.is_referral_reward_mode_available(user_mode):
+            return user_mode
+        return self.get_default_referral_reward_mode()
+
+    def is_referral_reward_mode_selectable(self) -> bool:
+        return len(self.get_available_referral_reward_modes()) > 1
 
     def get_traffic_packages(self) -> list[dict]:
         try:

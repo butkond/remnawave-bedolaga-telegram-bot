@@ -53,7 +53,7 @@ from app.utils.photo_message import safe_edit_or_resend
 from app.utils.subscription_utils import (
     resolve_hwid_device_limit_for_payload,
 )
-from app.utils.user_utils import get_effective_referral_commission_percent
+from app.utils.user_utils import get_effective_referral_commission_percent, get_referral_traffic_reward_days_by_referral
 
 
 logger = structlog.get_logger(__name__)
@@ -1470,6 +1470,15 @@ async def _build_user_referrals_view(
         )
 
     if referrals:
+        show_traffic_reward_days = 'traffic_reward' in settings.get_available_referral_reward_modes()
+        traffic_reward_days_by_referral = {}
+        if show_traffic_reward_days:
+            traffic_reward_days_by_referral = await get_referral_traffic_reward_days_by_referral(
+                db,
+                user_id,
+                [referral.id for referral in referrals[:limit]],
+            )
+
         lines.append(
             texts.t(
                 'ADMIN_USER_REFERRALS_LIST_HEADER',
@@ -1496,6 +1505,13 @@ async def _build_user_referrals_view(
                     username_part=username_part,
                 )
             )
+            if show_traffic_reward_days:
+                items.append(
+                    texts.t(
+                        'ADMIN_USER_REFERRALS_LIST_ITEM_TRAFFIC_DAYS',
+                        '  🎁 Бесплатных дней: {days}',
+                    ).format(days=traffic_reward_days_by_referral.get(referral.id, 0))
+                )
 
         lines.append('\n'.join(items))
 

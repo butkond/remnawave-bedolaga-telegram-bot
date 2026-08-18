@@ -844,6 +844,7 @@
     "ADMIN_USER_REFERRAL_COMMISSION_INVALID": "❌ عدد 0 تا 100 یا 'استاندارد' وارد کنید",
     "ADMIN_USER_REFERRALS_LIST_HEADER": "<b>لیست ریفرال‌ها:</b>",
     "ADMIN_USER_REFERRALS_LIST_ITEM": "• {name} (ID: <code>{telegram_id}</code>{username_part})",
+    "ADMIN_USER_REFERRALS_LIST_ITEM_TRAFFIC_DAYS": "  🎁 روزهای رایگان: {days}",
     "ADMIN_USER_REFERRALS_LIST_TRUNCATED": "• … و {count} ریفرال دیگر",
     "ADMIN_USER_REFERRALS_EMPTY": "هنوز ریفرالی نیست.",
     "ADMIN_USER_REFERRALS_EDIT_HINT": "✏️ برای تغییر لیست «✏️ ویرایش» بزنید.",
@@ -1351,6 +1352,7 @@
     "REFERRAL_LIST_ITEM_ACTIVITY": "   🕐 فعالیت: {days} روز پیش",
     "REFERRAL_LIST_ITEM_ACTIVITY_LONG_AGO": "   🕐 فعالیت: مدت‌ها پیش",
     "REFERRAL_LIST_ITEM_EARNED": "   💎 درآمد از او: {amount}",
+    "REFERRAL_LIST_ITEM_TRAFFIC_DAYS_EARNED": "   🎁 روزهای رایگان از او: {days}",
     "REFERRAL_LIST_ITEM_HEADER": "{index}. {status} <b>{name}</b>",
     "REFERRAL_LIST_ITEM_REGISTERED": "   📅 ثبت‌نام: {days} روز پیش",
     "REFERRAL_LIST_ITEM_TOPUPS": "   {emoji} شارژها: {count}",
@@ -1776,5 +1778,14 @@
     "WEBHOOK_USER_NOT_CONNECTED": "📡 <b>هنوز متصل نشده‌اید</b>\n\nاشتراک{tariff_label} شما فعال است اما هنوز اتصال VPN برقرار نشده. برای شروع استفاده متصل شوید.",
     "WEBHOOK_DEVICE_ADDED": "📱 <b>دستگاه جدید</b>\n\nدستگاه جدیدی به اشتراک{tariff_label} شما اضافه شد: <code>{device}</code>",
     "WEBHOOK_DEVICE_DELETED": "📱 <b>دستگاه حذف شد</b>\n\nدستگاهی از اشتراک{tariff_label} شما حذف شد: <code>{device}</code>",
-    "WEBHOOK_CLOSE_BUTTON": "✖️ بستن"
+    "WEBHOOK_CLOSE_BUTTON": "✖️ بستن",
+    "REFERRAL_TRAFFIC_REWARD_GRANTED": "🎁 <b>Referral reward granted!</b>\n\nYour invited users have started using the VPN.\nSubscription extended by <b>{reward_days} days</b>.\n\nLatest counted referral: <b>{referral_name}</b>",
+    "REFERRAL_ACTIVE_MODE": "• Active system: <b>{mode}</b>",
+    "REFERRAL_REWARD_TRAFFIC": "• For {required} referrals who connect to VPN for the first time: <b>{days} days</b> of subscription",
+    "REFERRAL_MODE_BALANCE_LABEL": "top-up rewards",
+    "REFERRAL_MODE_TRAFFIC_LABEL": "free days for connections",
+    "REFERRAL_MODE_BALANCE_BUTTON": "💰 Top-ups",
+    "REFERRAL_MODE_TRAFFIC_BUTTON": "🎁 Connections",
+    "REFERRAL_MODE_NOT_AVAILABLE": "This mode is currently unavailable",
+    "REFERRAL_MODE_UPDATED": "Referral system changed: {mode}"
 }

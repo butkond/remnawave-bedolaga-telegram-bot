@@ -1,11 +1,13 @@
 """referral first-connected usage rewards
 
-Revision ID: 0095
+Revision ID: c001_referral_traffic_rewards
 Revises: 0094
 Create Date: 2026-07-12
 
 Adds persistent attribution, qualification and grant tables for the referral
 mode that rewards referrers when invited users first really connect to VPN.
+Grant cycles are included from the initial schema so the reward can be issued
+for every completed group of qualified referrals.
 """
 
 from typing import Sequence, Union
@@ -14,7 +16,7 @@ import sqlalchemy as sa
 from alembic import op
 
 
-revision: str = '0095'
+revision: str = 'c001_referral_traffic_rewards'
 down_revision: Union[str, None] = '0094'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -87,6 +89,7 @@ def upgrade() -> None:
             'referral_traffic_reward_grants',
             sa.Column('id', sa.Integer(), nullable=False),
             sa.Column('referrer_id', sa.Integer(), nullable=False),
+            sa.Column('reward_cycle', sa.Integer(), nullable=False, server_default='1'),
             sa.Column('qualified_count_at_grant', sa.Integer(), nullable=False),
             sa.Column('reward_days', sa.Integer(), nullable=False),
             sa.Column('subscription_id', sa.Integer(), nullable=True),
@@ -95,7 +98,11 @@ def upgrade() -> None:
             sa.ForeignKeyConstraint(['referrer_id'], ['users.id'], ondelete='CASCADE'),
             sa.ForeignKeyConstraint(['subscription_id'], ['subscriptions.id'], ondelete='SET NULL'),
             sa.PrimaryKeyConstraint('id'),
-            sa.UniqueConstraint('referrer_id', name='uq_referral_traffic_reward_grants_referrer'),
+            sa.UniqueConstraint(
+                'referrer_id',
+                'reward_cycle',
+                name='uq_referral_traffic_reward_grants_referrer_cycle',
+            ),
         )
         op.create_index(
             'idx_referral_traffic_reward_grants_subscription',

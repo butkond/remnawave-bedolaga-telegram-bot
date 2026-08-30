@@ -91,10 +91,21 @@ class TributeService:
             if not payment_id and 'name' in webhook_data:
                 event_name = webhook_data.get('name')
                 data = webhook_data.get('payload', {})
-                payment_id = str(data.get('donation_request_id'))
                 amount_kopeks = data.get('amount', 0)
                 telegram_user_id = data.get('telegram_user_id')
                 trb_user_id = data.get('trb_user_id')
+
+                # `donation_request_id` is the donate request/link id, not a
+                # unique payment id. Reusing it would mark every next donation
+                # through the same Tribute link as a duplicate. The envelope
+                # `created_at` is stable for delivery retries and differs for
+                # separate donations, so it is part of the idempotency key.
+                donation_request_id = data.get('donation_request_id')
+                created_at = webhook_data.get('created_at')
+                if donation_request_id is not None and created_at:
+                    payment_id = f'{donation_request_id}_{telegram_user_id}_{amount_kopeks}_{created_at}'
+                elif donation_request_id is not None:
+                    payment_id = None
 
                 if event_name in ('new_donation', 'recurrent_donation'):
                     status = 'paid'

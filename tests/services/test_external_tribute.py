@@ -44,7 +44,9 @@ async def test_new_donation_payment_id_uses_event_timestamp(monkeypatch: pytest.
 
 
 @pytest.mark.anyio('asyncio')
-async def test_new_digital_product_uses_purchase_id_and_webhook_rub_amount(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_new_digital_product_uses_purchase_id_and_webhook_amount_kopeks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr('app.external.tribute.settings.TRIBUTE_MODE', 'digital_product', raising=False)
     monkeypatch.setattr(
         'app.external.tribute.settings.TRIBUTE_DIGITAL_PRODUCTS',
@@ -61,7 +63,7 @@ async def test_new_digital_product_uses_purchase_id_and_webhook_rub_amount(monke
             'payload': {
                 'purchase_id': 12345,
                 'product_id': 456,
-                'amount': 500,
+                'amount': 10000,
                 'currency': 'rub',
                 'telegram_user_id': 684047866,
                 'trb_user_id': 'T-19520283',
@@ -73,7 +75,7 @@ async def test_new_digital_product_uses_purchase_id_and_webhook_rub_amount(monke
     assert result['event_type'] == 'payment'
     assert result['status'] == 'paid'
     assert result['payment_id'] == 'digital_product_12345'
-    assert result['amount_kopeks'] == 50000
+    assert result['amount_kopeks'] == 10000
     assert result['user_id'] == 684047866
 
 
@@ -95,7 +97,7 @@ async def test_new_digital_product_ignores_non_rub_currency(monkeypatch: pytest.
             'payload': {
                 'purchase_id': 12345,
                 'product_id': 456,
-                'amount': 500,
+                'amount': 10000,
                 'currency': 'usd',
                 'telegram_user_id': 684047866,
             },
@@ -150,7 +152,7 @@ async def test_digital_product_refund_uses_purchase_id(monkeypatch: pytest.Monke
             'payload': {
                 'purchase_id': 12345,
                 'product_id': 456,
-                'amount': 500,
+                'amount': 10000,
                 'currency': 'rub',
                 'telegram_user_id': 684047866,
             },
@@ -160,4 +162,4 @@ async def test_digital_product_refund_uses_purchase_id(monkeypatch: pytest.Monke
     assert result is not None
     assert result['event_type'] == 'refund'
     assert result['payment_id'] == 'digital_product_12345'
-    assert result['amount_kopeks'] == 50000
+    assert result['amount_kopeks'] == 10000

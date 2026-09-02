@@ -1,7 +1,6 @@
 import hashlib
 import hmac
 import json
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -231,14 +230,14 @@ class TributeService:
             return None
 
         try:
-            amount_rubles = Decimal(str(amount))
-        except (InvalidOperation, TypeError, ValueError):
+            amount_kopeks = int(amount)
+        except (TypeError, ValueError):
             return None
 
-        if amount_rubles <= 0:
+        if amount_kopeks <= 0:
             return None
 
-        return int((amount_rubles * Decimal(100)).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+        return amount_kopeks
 
     async def get_payment_status(self, payment_id: str) -> dict[str, Any] | None:
         try:

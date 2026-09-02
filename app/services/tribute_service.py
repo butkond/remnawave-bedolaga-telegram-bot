@@ -259,28 +259,41 @@ class TributeService:
             amount_kopeks = refund_data['amount_kopeks']
             payment_id = refund_data['payment_id']
             trb_user_id = refund_data.get('trb_user_id')
+            external_id = f'refund_{payment_id}'
 
             async for session in get_db():
+                user = await get_user_by_telegram_id(session, user_id)
+                if not user:
+                    logger.warning('Пользователь не найден для возврата Tribute', user_id=user_id)
+                    return
+
+                existing_refund = await get_transaction_by_external_id(session, external_id, PaymentMethod.TRIBUTE)
+                if existing_refund:
+                    logger.warning(
+                        'Tribute refund уже обработан ранее, повторное списание пропущено',
+                        payment_id=payment_id,
+                        transaction_id=existing_refund.id,
+                    )
+                    return
+
                 await create_transaction(
                     db=session,
-                    user_id=user_id,
+                    user_id=user.id,
                     type=TransactionType.REFUND,
                     amount_kopeks=-amount_kopeks,
                     description=f'Возврат Tribute платежа {payment_id}',
                     payment_method=PaymentMethod.TRIBUTE,
-                    external_id=f'refund_{payment_id}',
+                    external_id=external_id,
                     is_completed=True,
                     commit=False,
                 )
 
-                user = await get_user_by_telegram_id(session, user_id)
-                if user:
-                    # Lock user row to prevent concurrent balance race conditions
-                    from app.database.crud.user import lock_user_for_update
+                # Lock user row to prevent concurrent balance race conditions
+                from app.database.crud.user import lock_user_for_update
 
-                    user = await lock_user_for_update(session, user)
-                    if user.balance_kopeks >= amount_kopeks:
-                        user.balance_kopeks -= amount_kopeks
+                user = await lock_user_for_update(session, user)
+                if user.balance_kopeks >= amount_kopeks:
+                    user.balance_kopeks -= amount_kopeks
 
                 await session.commit()
 

@@ -1,7 +1,9 @@
 import hashlib
 import hmac
 import json
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import structlog
 
@@ -24,7 +26,11 @@ class TributeService:
             return None
 
         try:
-            payment_url = f'{self.donate_link}&user_id={user_id}'
+            if not self.donate_link:
+                logger.error('Tribute donate link не настроен')
+                return None
+
+            payment_url = self._append_query_param(self.donate_link, 'user_id', str(user_id))
 
             logger.info('Создана ссылка Tribute для пользователя', user_id=user_id)
             return payment_url
@@ -80,7 +86,7 @@ class TributeService:
             telegram_user_id = webhook_data.get('telegram_user_id')
             trb_user_id = webhook_data.get('trb_user_id')
 
-            if not payment_id and 'payload' in webhook_data:
+            if not payment_id and 'payload' in webhook_data and 'name' not in webhook_data:
                 data = webhook_data['payload']
                 payment_id = data.get('id') or data.get('payment_id')
                 status = data.get('status')
@@ -88,26 +94,80 @@ class TributeService:
                 telegram_user_id = data.get('telegram_user_id')
                 trb_user_id = data.get('trb_user_id')
 
-            if not payment_id and 'name' in webhook_data:
+            if 'name' in webhook_data:
                 event_name = webhook_data.get('name')
                 data = webhook_data.get('payload', {})
                 amount_kopeks = data.get('amount', 0)
                 telegram_user_id = data.get('telegram_user_id')
                 trb_user_id = data.get('trb_user_id')
 
-                # `donation_request_id` is the donate request/link id, not a
-                # unique payment id. Reusing it would mark every next donation
-                # through the same Tribute link as a duplicate. The envelope
-                # `created_at` is stable for delivery retries and differs for
-                # separate donations, so it is part of the idempotency key.
-                donation_request_id = data.get('donation_request_id')
-                created_at = webhook_data.get('created_at')
-                if donation_request_id is not None and created_at:
-                    payment_id = f'{donation_request_id}_{telegram_user_id}_{amount_kopeks}_{created_at}'
-                elif donation_request_id is not None:
-                    payment_id = None
+                if event_name == 'new_digital_product':
+                    product_id = data.get('product_id')
+                    configured_product = settings.get_tribute_digital_product(product_id)
+                    if not settings.is_tribute_digital_product_mode() or not configured_product:
+                        logger.warning(
+                            'Tribute digital product webhook ignored: product is not configured',
+                            product_id=product_id,
+                        )
+                        return None
 
-                if event_name in ('new_donation', 'recurrent_donation'):
+                    amount_kopeks = self._parse_digital_product_amount_kopeks(data.get('amount'), data.get('currency'))
+                    if amount_kopeks is None:
+                        logger.warning(
+                            'Tribute digital product webhook ignored: unsupported currency or amount',
+                            product_id=product_id,
+                            amount=data.get('amount'),
+                            currency=data.get('currency'),
+                        )
+                        return None
+
+                    purchase_id = data.get('purchase_id') or data.get('id') or data.get('payment_id')
+                    created_at = webhook_data.get('created_at')
+                    if purchase_id is not None:
+                        payment_id = f'digital_product_{purchase_id}'
+                    elif product_id is not None and created_at:
+                        payment_id = f'digital_product_{product_id}_{telegram_user_id}_{amount_kopeks}_{created_at}'
+                    else:
+                        payment_id = None
+                    status = 'paid'
+                elif event_name == 'digital_product_refunded':
+                    product_id = data.get('product_id')
+                    purchase_id = data.get('purchase_id') or data.get('id') or data.get('payment_id')
+                    configured_product = settings.get_tribute_digital_product(product_id)
+                    if not settings.is_tribute_digital_product_mode() or not configured_product:
+                        logger.warning(
+                            'Tribute digital product refund ignored: product is not configured',
+                            product_id=product_id,
+                        )
+                        return None
+
+                    amount_kopeks = self._parse_digital_product_amount_kopeks(data.get('amount'), data.get('currency'))
+                    if amount_kopeks is None:
+                        logger.warning(
+                            'Tribute digital product refund ignored: unsupported currency or amount',
+                            product_id=product_id,
+                            amount=data.get('amount'),
+                            currency=data.get('currency'),
+                        )
+                        return None
+
+                    payment_id = f'digital_product_{purchase_id}' if purchase_id is not None else None
+                    status = 'refunded'
+                elif event_name in ('new_donation', 'recurrent_donation'):
+                    if settings.is_tribute_digital_product_mode():
+                        logger.warning('Tribute donation webhook ignored in digital product mode')
+                        return None
+                    # `donation_request_id` is the donate request/link id, not a
+                    # unique payment id. Reusing it would mark every next donation
+                    # through the same Tribute link as a duplicate. The envelope
+                    # `created_at` is stable for delivery retries and differs for
+                    # separate donations, so it is part of the idempotency key.
+                    donation_request_id = data.get('donation_request_id')
+                    created_at = webhook_data.get('created_at')
+                    if donation_request_id is not None and created_at:
+                        payment_id = f'{donation_request_id}_{telegram_user_id}_{amount_kopeks}_{created_at}'
+                    elif donation_request_id is not None:
+                        payment_id = None
                     status = 'paid'
                 elif event_name == 'cancelled_subscription':
                     status = 'cancelled'
@@ -140,7 +200,7 @@ class TributeService:
                 return None
 
             result = {
-                'event_type': 'payment',
+                'event_type': 'refund' if status == 'refunded' else 'payment',
                 'payment_id': payment_id or f'tribute_{telegram_user_id}_{amount_kopeks}',
                 'user_id': telegram_user_id,
                 'trb_user_id': trb_user_id,
@@ -157,6 +217,28 @@ class TributeService:
             logger.error('❌ Ошибка обработки Tribute webhook', error=e, exc_info=True)
             logger.error('🔍 Webhook data для отладки', dumps=json.dumps(webhook_data, ensure_ascii=False, indent=2))
             return None
+
+    @staticmethod
+    def _append_query_param(url: str, key: str, value: str) -> str:
+        parts = urlsplit(url)
+        query = dict(parse_qsl(parts.query, keep_blank_values=True))
+        query[key] = value
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+    @staticmethod
+    def _parse_digital_product_amount_kopeks(amount: Any, currency: Any) -> int | None:
+        if str(currency or '').strip().lower() != 'rub':
+            return None
+
+        try:
+            amount_rubles = Decimal(str(amount))
+        except (InvalidOperation, TypeError, ValueError):
+            return None
+
+        if amount_rubles <= 0:
+            return None
+
+        return int((amount_rubles * Decimal(100)).quantize(Decimal(1), rounding=ROUND_HALF_UP))
 
     async def get_payment_status(self, payment_id: str) -> dict[str, Any] | None:
         try:

@@ -44,32 +44,59 @@ async def start_tribute_payment(
         from app.services.tribute_service import TributeService
 
         tribute_service = TributeService(callback.bot)
-        payment_url = await tribute_service.create_payment_link(
-            user_id=db_user.telegram_id,
-            amount_kopeks=0,
-            description='Пополнение баланса VPN',
-        )
+        if settings.is_tribute_digital_product_mode():
+            products = settings.get_tribute_digital_products()
+            if not products:
+                logger.error('Tribute digital product mode enabled, but products are not configured')
+                await callback.answer('❌ Ошибка настройки платежей', show_alert=True)
+                return
 
-        if not payment_url:
-            await callback.answer('❌ Ошибка создания платежа', show_alert=True)
-            return
-
-        keyboard = types.InlineKeyboardMarkup(
-            inline_keyboard=[
-                [types.InlineKeyboardButton(text='💳 Перейти к оплате', url=payment_url)],
-                [types.InlineKeyboardButton(text=texts.BACK, callback_data='balance_topup')],
+            keyboard_rows = [
+                [
+                    types.InlineKeyboardButton(
+                        text=str(product['label']),
+                        url=str(product['url']),
+                    )
+                ]
+                for product in products
             ]
-        )
+            keyboard_rows.append([types.InlineKeyboardButton(text=texts.BACK, callback_data='balance_topup')])
 
-        message_text = (
-            '💳 <b>Пополнение банковской картой</b>\n\n'
-            '• Введите любую сумму от 100₽\n'
-            '• Безопасная оплата через Tribute\n'
-            '• Мгновенное зачисление на баланс\n'
-            '• Принимаем карты Visa, MasterCard, МИР\n\n'
-            '• 🚨 НЕ ОТПРАВЛЯТЬ ПЛАТЕЖ АНОНИМНО!\n\n'
-            'Нажмите кнопку для перехода к оплате:'
-        )
+            keyboard = types.InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
+            message_text = (
+                '💳 <b>Пополнение банковской картой</b>\n\n'
+                'Выберите сумму пополнения:\n\n'
+                '• Безопасная оплата через Tribute\n'
+                '• Средства зачисляются на баланс после оплаты\n\n'
+                'Нажмите кнопку с нужной суммой:'
+            )
+        else:
+            payment_url = await tribute_service.create_payment_link(
+                user_id=db_user.telegram_id,
+                amount_kopeks=0,
+                description='Пополнение баланса VPN',
+            )
+
+            if not payment_url:
+                await callback.answer('❌ Ошибка создания платежа', show_alert=True)
+                return
+
+            keyboard = types.InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [types.InlineKeyboardButton(text='💳 Перейти к оплате', url=payment_url)],
+                    [types.InlineKeyboardButton(text=texts.BACK, callback_data='balance_topup')],
+                ]
+            )
+
+            message_text = (
+                '💳 <b>Пополнение банковской картой</b>\n\n'
+                '• Введите любую сумму от 100₽\n'
+                '• Безопасная оплата через Tribute\n'
+                '• Мгновенное зачисление на баланс\n'
+                '• Принимаем карты Visa, MasterCard, МИР\n\n'
+                '• 🚨 НЕ ОТПРАВЛЯТЬ ПЛАТЕЖ АНОНИМНО!\n\n'
+                'Нажмите кнопку для перехода к оплате:'
+            )
 
         await callback.message.edit_text(
             message_text,

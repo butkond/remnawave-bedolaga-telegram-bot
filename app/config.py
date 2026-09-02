@@ -1,4 +1,5 @@
 import html
+import json
 import os
 import re
 from collections import defaultdict
@@ -478,6 +479,8 @@ class Settings(BaseSettings):
     TRIBUTE_ENABLED: bool = False
     TRIBUTE_API_KEY: str | None = None
     TRIBUTE_DONATE_LINK: str | None = None
+    TRIBUTE_MODE: str = 'donation'
+    TRIBUTE_DIGITAL_PRODUCTS: str = ''
     TRIBUTE_WEBHOOK_PATH: str = '/tribute-webhook'
     TRIBUTE_WEBHOOK_HOST: str = '0.0.0.0'
     TRIBUTE_WEBHOOK_PORT: int = 8081
@@ -2273,6 +2276,74 @@ class Settings(BaseSettings):
     def get_pal24_display_name(self) -> str:
         name = (self.PAL24_DISPLAY_NAME or '').strip()
         return name or 'PAL24'
+
+    def get_tribute_mode(self) -> str:
+        mode = (self.TRIBUTE_MODE or 'donation').strip().lower()
+        if mode in {'donation', 'digital_product'}:
+            return mode
+        logger.warning('Неизвестный TRIBUTE_MODE, используется donation', configured=self.TRIBUTE_MODE)
+        return 'donation'
+
+    def is_tribute_digital_product_mode(self) -> bool:
+        return self.get_tribute_mode() == 'digital_product'
+
+    def get_tribute_digital_products(self) -> list[dict[str, str]]:
+        raw = (self.TRIBUTE_DIGITAL_PRODUCTS or '').strip()
+        if not raw:
+            return []
+
+        items: list[dict[str, str]] = []
+        try:
+            parsed = json.loads(raw)
+            source_items = parsed if isinstance(parsed, list) else []
+            for item in source_items:
+                if not isinstance(item, dict):
+                    continue
+                product_id = str(item.get('product_id') or item.get('id') or '').strip()
+                url = str(item.get('url') or item.get('link') or '').strip()
+                label = str(item.get('label') or '').strip()
+                if product_id and url:
+                    items.append(
+                        {
+                            'product_id': product_id,
+                            'url': url,
+                            'label': label or product_id,
+                        }
+                    )
+            return items
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        for chunk in raw.split(';'):
+            parts = [part.strip() for part in chunk.split('|')]
+            if len(parts) < 3:
+                continue
+            product_id = parts[0]
+            if len(parts) >= 4 and parts[1].isdigit():
+                url = parts[2]
+                label = parts[3]
+            else:
+                url = parts[1]
+                label = parts[2]
+            if product_id and url:
+                items.append(
+                    {
+                        'product_id': product_id,
+                        'url': url,
+                        'label': label or product_id,
+                    }
+                )
+
+        return items
+
+    def get_tribute_digital_product(self, product_id: str | int | None) -> dict[str, str] | None:
+        normalized = str(product_id or '').strip()
+        if not normalized:
+            return None
+        for product in self.get_tribute_digital_products():
+            if product.get('product_id') == normalized:
+                return product
+        return None
 
     def is_platega_enabled(self) -> bool:
         return self.PLATEGA_ENABLED and self.PLATEGA_MERCHANT_ID is not None and self.PLATEGA_SECRET is not None

@@ -540,6 +540,8 @@ class Settings(BaseSettings):
 
     # Отключение превью ссылок в сообщениях бота
     DISABLE_WEB_PAGE_PREVIEW: bool = False
+    MAIN_MENU_PUBLIC_OFFER_URL: str | None = None
+    MAIN_MENU_PRIVACY_POLICY_URL: str | None = None
     ACTIVATE_BUTTON_VISIBLE: bool = False
     ACTIVATE_BUTTON_TEXT: str = 'активировать'
     PAYMENT_BALANCE_DESCRIPTION: str = 'Пополнение баланса'

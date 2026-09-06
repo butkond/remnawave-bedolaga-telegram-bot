@@ -1114,7 +1114,12 @@ async def cmd_start(message: types.Message, state: FSMContext, db: AsyncSession,
             is_moderator=is_moderator,
             custom_buttons=custom_buttons,
         )
-        await message.answer(menu_text, reply_markup=keyboard, parse_mode='HTML')
+        await message.answer(
+            menu_text,
+            reply_markup=keyboard,
+            parse_mode='HTML',
+            disable_web_page_preview=True,
+        )
 
         if pinned_message and not pinned_message.send_before_menu:
             await _send_pinned_message(message.bot, db, user, pinned_message)
@@ -1768,7 +1773,12 @@ async def complete_registration_from_callback(callback: types.CallbackQuery, sta
             )
             if pinned_message and pinned_message.send_before_menu:
                 await _send_pinned_message(callback.bot, db, existing_user, pinned_message)
-            await callback.message.answer(menu_text, reply_markup=keyboard, parse_mode='HTML')
+            await callback.message.answer(
+                menu_text,
+                reply_markup=keyboard,
+                parse_mode='HTML',
+                disable_web_page_preview=True,
+            )
             if pinned_message and not pinned_message.send_before_menu:
                 await _send_pinned_message(callback.bot, db, existing_user, pinned_message)
         except Exception as e:
@@ -2016,7 +2026,12 @@ async def complete_registration_from_callback(callback: types.CallbackQuery, sta
             )
             if pinned_message and pinned_message.send_before_menu:
                 await _send_pinned_message(callback.bot, db, user, pinned_message)
-            await callback.message.answer(menu_text, reply_markup=keyboard, parse_mode='HTML')
+            await callback.message.answer(
+                menu_text,
+                reply_markup=keyboard,
+                parse_mode='HTML',
+                disable_web_page_preview=True,
+            )
             if pinned_message and not pinned_message.send_before_menu:
                 await _send_pinned_message(callback.bot, db, user, pinned_message)
             logger.info('✅ Главное меню показано пользователю', telegram_id=user.telegram_id)
@@ -2089,7 +2104,12 @@ async def complete_registration(message: types.Message, state: FSMContext, db: A
             )
             if pinned_message and pinned_message.send_before_menu:
                 await _send_pinned_message(message.bot, db, existing_user, pinned_message)
-            await message.answer(menu_text, reply_markup=keyboard, parse_mode='HTML')
+            await message.answer(
+                menu_text,
+                reply_markup=keyboard,
+                parse_mode='HTML',
+                disable_web_page_preview=True,
+            )
             if pinned_message and not pinned_message.send_before_menu:
                 await _send_pinned_message(message.bot, db, existing_user, pinned_message)
         except Exception as e:
@@ -2372,7 +2392,12 @@ async def complete_registration(message: types.Message, state: FSMContext, db: A
             )
             if pinned_message and pinned_message.send_before_menu:
                 await _send_pinned_message(message.bot, db, user, pinned_message)
-            await message.answer(menu_text, reply_markup=keyboard, parse_mode='HTML')
+            await message.answer(
+                menu_text,
+                reply_markup=keyboard,
+                parse_mode='HTML',
+                disable_web_page_preview=True,
+            )
             logger.info('✅ Главное меню показано пользователю', telegram_id=user.telegram_id)
             if pinned_message and not pinned_message.send_before_menu:
                 await _send_pinned_message(message.bot, db, user, pinned_message)
@@ -2664,6 +2689,7 @@ async def required_sub_channel_check(
                     text=menu_text,
                     reply_markup=keyboard,
                     parse_mode='HTML',
+                    disable_web_page_preview=True,
                 )
             if pinned_message and not pinned_message.send_before_menu:
                 await _send_pinned_message(bot, db, user, pinned_message)
@@ -2832,6 +2858,7 @@ async def required_sub_channel_check(
                             text=menu_text,
                             reply_markup=keyboard,
                             parse_mode='HTML',
+                            disable_web_page_preview=True,
                         )
                     if pinned_message and not pinned_message.send_before_menu:
                         await _send_pinned_message(bot, db, user, pinned_message)

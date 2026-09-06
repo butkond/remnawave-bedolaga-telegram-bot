@@ -74,6 +74,26 @@ def _resolve_info_page_text(values: dict | None, language: str) -> str:
     return ''
 
 
+def _append_main_menu_legal_links(text: str) -> str:
+    links: list[str] = []
+
+    public_offer_url = (settings.MAIN_MENU_PUBLIC_OFFER_URL or '').strip()
+    if public_offer_url:
+        links.append(
+            f'<a href="{html.escape(public_offer_url, quote=True)}">'
+            'Пользовательское соглашение и публичная оферта</a>'
+        )
+
+    privacy_policy_url = (settings.MAIN_MENU_PRIVACY_POLICY_URL or '').strip()
+    if privacy_policy_url:
+        links.append(f'<a href="{html.escape(privacy_policy_url, quote=True)}">Политика конфиденциальности</a>')
+
+    if not links:
+        return text
+
+    return f'{text.rstrip()}\n\n' + '\n'.join(links)
+
+
 def _resolve_info_page_title(page: InfoPage, language: str) -> str:
     title = _resolve_info_page_text(page.title, language) or page.slug
     if page.icon:
@@ -243,6 +263,7 @@ async def show_main_menu(
         caption=menu_text,
         keyboard=keyboard,
         parse_mode='HTML',
+        disable_web_page_preview=True,
     )
     if not skip_callback_answer:
         await callback.answer()
@@ -1234,6 +1255,7 @@ async def handle_back_to_menu(callback: types.CallbackQuery, state: FSMContext, 
         caption=menu_text,
         keyboard=keyboard,
         parse_mode='HTML',
+        disable_web_page_preview=True,
     )
     await callback.answer()
 
@@ -1457,12 +1479,12 @@ async def get_main_menu_text(user, texts, db: AsyncSession):
     try:
         random_message = await get_random_active_message(db)
         if random_message:
-            return _insert_random_message(base_text, random_message, action_prompt)
+            base_text = _insert_random_message(base_text, random_message, action_prompt)
 
     except Exception as e:
         logger.error('Ошибка получения случайного сообщения', error=e)
 
-    return base_text
+    return _append_main_menu_legal_links(base_text)
 
 
 async def handle_activate_button(callback: types.CallbackQuery, db_user: User, db: AsyncSession):

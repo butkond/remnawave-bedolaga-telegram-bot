@@ -90,9 +90,12 @@ async def _answer_text(
     keyboard: types.InlineKeyboardMarkup | None,
     parse_mode: str | None,
     error: TelegramBadRequest | None = None,
+    disable_web_page_preview: bool | None = None,
 ) -> None:
     language = _get_language(callback)
     kwargs = _build_base_kwargs(keyboard, parse_mode)
+    if disable_web_page_preview is not None:
+        kwargs['disable_web_page_preview'] = disable_web_page_preview
 
     if error and is_privacy_restricted_error(error):
         caption = append_privacy_hint(caption, language)
@@ -113,8 +116,12 @@ async def edit_or_answer_photo(
     parse_mode: str | None = 'HTML',
     *,
     force_text: bool = False,
+    disable_web_page_preview: bool | None = None,
 ) -> None:
     resolved_parse_mode = parse_mode or 'HTML'
+    preview_kwargs = (
+        {'disable_web_page_preview': disable_web_page_preview} if disable_web_page_preview is not None else {}
+    )
 
     # Если сообщение недоступно, отправляем новое сообщение
     if isinstance(callback.message, InaccessibleMessage):
@@ -132,6 +139,7 @@ async def edit_or_answer_photo(
                     caption,
                     reply_markup=keyboard,
                     parse_mode=resolved_parse_mode,
+                    **preview_kwargs,
                 )
         except Exception as e:
             logger.warning('Не удалось отправить новое сообщение для InaccessibleMessage', e=e)
@@ -140,6 +148,7 @@ async def edit_or_answer_photo(
                     caption,
                     reply_markup=keyboard,
                     parse_mode=resolved_parse_mode,
+                    **preview_kwargs,
                 )
             except Exception:
                 pass
@@ -150,12 +159,19 @@ async def edit_or_answer_photo(
         try:
             if callback.message.photo:
                 await callback.message.delete()
-                await _answer_text(callback, caption, keyboard, resolved_parse_mode)
+                await _answer_text(
+                    callback,
+                    caption,
+                    keyboard,
+                    resolved_parse_mode,
+                    disable_web_page_preview=disable_web_page_preview,
+                )
             else:
                 await callback.message.edit_text(
                     caption,
                     reply_markup=keyboard,
                     parse_mode=resolved_parse_mode,
+                    **preview_kwargs,
                 )
         except TelegramForbiddenError:
             logger.debug('Пользователь заблокировал бота, пропускаем')
@@ -164,7 +180,7 @@ async def edit_or_answer_photo(
                 await callback.message.delete()
             except Exception:
                 pass
-            await _answer_text(callback, caption, keyboard, resolved_parse_mode, error)
+            await _answer_text(callback, caption, keyboard, resolved_parse_mode, error, disable_web_page_preview)
         return
 
     # Если текст слишком длинный для caption — отправим как текст
@@ -172,11 +188,17 @@ async def edit_or_answer_photo(
         try:
             if callback.message.photo:
                 await callback.message.delete()
-            await _answer_text(callback, caption, keyboard, resolved_parse_mode)
+            await _answer_text(
+                callback,
+                caption,
+                keyboard,
+                resolved_parse_mode,
+                disable_web_page_preview=disable_web_page_preview,
+            )
         except TelegramForbiddenError:
             logger.debug('Пользователь заблокировал бота, пропускаем')
         except TelegramBadRequest as error:
-            await _answer_text(callback, caption, keyboard, resolved_parse_mode, error)
+            await _answer_text(callback, caption, keyboard, resolved_parse_mode, error, disable_web_page_preview)
         return
 
     media = _resolve_media(callback.message)
@@ -188,7 +210,13 @@ async def edit_or_answer_photo(
             await callback.message.delete()
         except Exception:
             pass
-        await _answer_text(callback, caption, keyboard, resolved_parse_mode)
+        await _answer_text(
+            callback,
+            caption,
+            keyboard,
+            resolved_parse_mode,
+            disable_web_page_preview=disable_web_page_preview,
+        )
         return
 
     # Retry logic для сетевых ошибок
@@ -215,7 +243,13 @@ async def edit_or_answer_photo(
                 await callback.message.delete()
             except Exception:
                 pass
-            await _answer_text(callback, caption, keyboard, resolved_parse_mode)
+            await _answer_text(
+                callback,
+                caption,
+                keyboard,
+                resolved_parse_mode,
+                disable_web_page_preview=disable_web_page_preview,
+            )
             return
         except OSError as os_error:
             # Logo file became unreadable mid-flight (deleted/replaced by directory).
@@ -228,7 +262,13 @@ async def edit_or_answer_photo(
                 await callback.message.delete()
             except Exception:
                 pass
-            await _answer_text(callback, caption, keyboard, resolved_parse_mode)
+            await _answer_text(
+                callback,
+                caption,
+                keyboard,
+                resolved_parse_mode,
+                disable_web_page_preview=disable_web_page_preview,
+            )
             return
         except TelegramForbiddenError:
             # Пользователь заблокировал бота — молча игнорируем
@@ -240,7 +280,7 @@ async def edit_or_answer_photo(
                     await callback.message.delete()
                 except Exception:
                     pass
-                await _answer_text(callback, caption, keyboard, resolved_parse_mode, error)
+                await _answer_text(callback, caption, keyboard, resolved_parse_mode, error, disable_web_page_preview)
                 return
             # Фоллбек: если не удалось обновить фото — отправим текст
             try:
@@ -249,7 +289,13 @@ async def edit_or_answer_photo(
                 pass
             logo_media = get_logo_media()
             if logo_media is None:
-                await _answer_text(callback, caption, keyboard, resolved_parse_mode)
+                await _answer_text(
+                    callback,
+                    caption,
+                    keyboard,
+                    resolved_parse_mode,
+                    disable_web_page_preview=disable_web_page_preview,
+                )
                 return
             try:
                 # Отправим как фото с логотипом
@@ -261,8 +307,14 @@ async def edit_or_answer_photo(
                 )
                 _cache_logo_file_id(result)
             except (TelegramBadRequest, TelegramForbiddenError) as photo_error:
-                await _answer_text(callback, caption, keyboard, resolved_parse_mode, photo_error)
+                await _answer_text(callback, caption, keyboard, resolved_parse_mode, photo_error, disable_web_page_preview)
             except Exception:
                 # Последний фоллбек — обычный текст
-                await _answer_text(callback, caption, keyboard, resolved_parse_mode)
+                await _answer_text(
+                    callback,
+                    caption,
+                    keyboard,
+                    resolved_parse_mode,
+                    disable_web_page_preview=disable_web_page_preview,
+                )
             return

@@ -784,7 +784,7 @@ async def show_tariffs_list(
 
     await callback.message.edit_text(
         "📦 <b>Выберите тариф</b>\n\n"
-        "Пока действителен бесплатный период пользования WGC VPN. "
+        "Пока действителен бесплатный период пользования Disco VPN. "
         "Информация о тарифах появится позже.",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
@@ -2862,7 +2862,7 @@ async def confirm_tariff_extend(
         )
         await callback.answer('Несоответствие подписки и тарифа, откройте продление заново', show_alert=True)
         return
-        
+
     actual_device_limit = subscription.device_limit or tariff.device_limit
 
     from app.database.crud.user import lock_user_for_pricing

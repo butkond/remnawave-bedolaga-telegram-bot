@@ -34,6 +34,23 @@ from app.utils.promo_offer import get_user_active_promo_discount_percent
 
 logger = structlog.get_logger(__name__)
 
+PURCHASE_TEMPORARILY_UNAVAILABLE_TEXT = 'Оформление скоро будет доступно, сейчас действует бесплатный период.'
+
+
+async def _show_purchase_temporarily_unavailable(
+    callback: types.CallbackQuery,
+    language: str,
+    back_callback: str = 'tariff_list',
+) -> None:
+    texts = get_texts(language)
+    await callback.message.edit_text(
+        PURCHASE_TEMPORARILY_UNAVAILABLE_TEXT,
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text=texts.BACK, callback_data=back_callback)]]
+        ),
+    )
+    await callback.answer()
+
 
 async def _persist_failed_refund(
     user_id: int,
@@ -783,24 +800,6 @@ async def show_tariffs_list(
     )
 
     await callback.message.edit_text(
-        "📦 <b>Выберите тариф</b>\n\n"
-        "Пока действителен бесплатный период пользования Disco VPN. "
-        "Информация о тарифах появится позже.",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="🔜 Будет скоро", callback_data="tariff_coming_soon"
-                    )
-                ],
-                [InlineKeyboardButton(text=texts.BACK, callback_data="back_to_menu")],
-            ]
-        ),
-    )
-    await callback.answer()
-    return
-
-    await callback.message.edit_text(
         tariffs_text,
         reply_markup=get_tariffs_keyboard(
             tariffs, db_user.language, purchased_tariff_ids
@@ -1137,6 +1136,10 @@ async def handle_custom_confirm(
     state: FSMContext,
 ):
     """Подтверждает покупку тарифа с кастомными параметрами."""
+    await state.clear()
+    await _show_purchase_temporarily_unavailable(callback, db_user.language)
+    return
+
     tariff_id = int(callback.data.split(":")[1])
 
     tariff = await get_tariff_by_id(db, tariff_id)
@@ -1449,6 +1452,10 @@ async def select_tariff_period_with_traffic(
     state: FSMContext,
 ):
     """Обрабатывает выбор периода для тарифа с кастомным трафиком - показывает экран настройки трафика."""
+    await state.clear()
+    await _show_purchase_temporarily_unavailable(callback, db_user.language)
+    return
+
     parts = callback.data.split(":")
     tariff_id = int(parts[1])
     period = int(parts[2])
@@ -1516,6 +1523,10 @@ async def select_tariff_period(
     state: FSMContext,
 ):
     """Обрабатывает выбор периода для тарифа."""
+    await state.clear()
+    await _show_purchase_temporarily_unavailable(callback, db_user.language)
+    return
+
     parts = callback.data.split(":")
     tariff_id = int(parts[1])
     period = int(parts[2])
@@ -1641,6 +1652,10 @@ async def confirm_tariff_purchase(
     state: FSMContext,
 ):
     """Подтверждает покупку тарифа и создает подписку."""
+    await state.clear()
+    await _show_purchase_temporarily_unavailable(callback, db_user.language)
+    return
+
     parts = callback.data.split(":")
     tariff_id = int(parts[1])
     period = int(parts[2])
@@ -2097,6 +2112,9 @@ async def confirm_daily_tariff_purchase(
     state: FSMContext,
 ):
     """Подтверждает покупку суточного тарифа."""
+    await state.clear()
+    await _show_purchase_temporarily_unavailable(callback, db_user.language)
+    return
 
     tariff_id = int(callback.data.split(":")[1])
     tariff = await get_tariff_by_id(db, tariff_id)

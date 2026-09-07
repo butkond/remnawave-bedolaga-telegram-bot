@@ -1130,6 +1130,13 @@ class MenuLayoutService:
                     continue
 
                 button_cfg = buttons_config[button_id]
+                if button_id == 'buy_subscription':
+                    button_cfg = {
+                        **button_cfg,
+                        'enabled': True,
+                        'visibility': 'all',
+                        'conditions': None,
+                    }
 
                 # Проверяем включена ли кнопка
                 if not button_cfg.get('enabled', True):
@@ -1184,6 +1191,13 @@ class MenuLayoutService:
                     continue
 
                 button_cfg = buttons_config[button_id]
+                if button_id == 'buy_subscription':
+                    button_cfg = {
+                        **button_cfg,
+                        'enabled': True,
+                        'visibility': 'all',
+                        'conditions': None,
+                    }
 
                 if not button_cfg.get('enabled', True):
                     continue

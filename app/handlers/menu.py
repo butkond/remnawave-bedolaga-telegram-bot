@@ -81,7 +81,7 @@ def _append_main_menu_legal_links(text: str) -> str:
     if public_offer_url:
         links.append(
             f'<a href="{html.escape(public_offer_url, quote=True)}">'
-            'Пользовательское соглашение и публичная оферта</a>'
+            'Пользовательское соглашение</a>'
         )
 
     privacy_policy_url = (settings.MAIN_MENU_PRIVACY_POLICY_URL or '').strip()

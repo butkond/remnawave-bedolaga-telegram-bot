@@ -1313,7 +1313,14 @@ async def start_subscription_purchase(
     db_user: User,
     db: AsyncSession,
 ):
-    texts = get_texts(db_user.language)
+    await state.clear()
+    await _edit_message_text_or_caption(
+        callback.message,
+        'Оформление скоро будет доступно, сейчас действует бесплатный период.',
+        get_back_keyboard(db_user.language),
+    )
+    await callback.answer()
+    return
 
     # Проверяем режим продаж - если tariffs, перенаправляем на выбор тарифов
     if settings.is_tariffs_mode():

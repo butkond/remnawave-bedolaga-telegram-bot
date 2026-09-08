@@ -1165,10 +1165,6 @@ async def handle_custom_confirm(
     state: FSMContext,
 ):
     """Подтверждает покупку тарифа с кастомными параметрами."""
-    await state.clear()
-    await _show_purchase_temporarily_unavailable(callback, db_user.language)
-    return
-
     tariff_id = int(callback.data.split(":")[1])
 
     tariff = await get_tariff_by_id(db, tariff_id)
@@ -1481,10 +1477,6 @@ async def select_tariff_period_with_traffic(
     state: FSMContext,
 ):
     """Обрабатывает выбор периода для тарифа с кастомным трафиком - показывает экран настройки трафика."""
-    await state.clear()
-    await _show_purchase_temporarily_unavailable(callback, db_user.language)
-    return
-
     parts = callback.data.split(":")
     tariff_id = int(parts[1])
     period = int(parts[2])
@@ -1552,10 +1544,6 @@ async def select_tariff_period(
     state: FSMContext,
 ):
     """Обрабатывает выбор периода для тарифа."""
-    await state.clear()
-    await _show_purchase_temporarily_unavailable(callback, db_user.language)
-    return
-
     parts = callback.data.split(":")
     tariff_id = int(parts[1])
     period = int(parts[2])
@@ -1680,10 +1668,6 @@ async def confirm_tariff_purchase(
     state: FSMContext,
 ):
     """Подтверждает покупку тарифа и создает подписку."""
-    await state.clear()
-    await _show_purchase_temporarily_unavailable(callback, db_user.language)
-    return
-
     parts = callback.data.split(":")
     tariff_id = int(parts[1])
     period = int(parts[2])
@@ -2140,10 +2124,6 @@ async def confirm_daily_tariff_purchase(
     state: FSMContext,
 ):
     """Подтверждает покупку суточного тарифа."""
-    await state.clear()
-    await _show_purchase_temporarily_unavailable(callback, db_user.language)
-    return
-
     tariff_id = int(callback.data.split(":")[1])
     tariff = await get_tariff_by_id(db, tariff_id)
 

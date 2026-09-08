@@ -155,7 +155,7 @@ DEFAULT_MENU_CONFIG: dict[str, Any] = {
         'buy_subscription': {
             'type': 'builtin',
             'builtin_id': 'buy_subscription',
-            'text': {'ru': '🛒 Купить подписку', 'en': '🛒 Buy subscription'},
+            'text': {'ru': '💲 Оформить подписку', 'en': '🛒 Buy subscription'},
             'action': 'menu_buy',
             'enabled': True,
             'visibility': 'all',
@@ -313,7 +313,7 @@ BUILTIN_BUTTONS_INFO: list[dict[str, Any]] = [
     },
     {
         'id': 'buy_subscription',
-        'default_text': {'ru': '🛒 Купить подписку', 'en': '🛒 Buy subscription'},
+        'default_text': {'ru': '💲 Оформить подписку', 'en': '🛒 Buy subscription'},
         'callback_data': 'menu_buy',
         'default_conditions': {'show_buy': True},
         'supports_dynamic_text': False,

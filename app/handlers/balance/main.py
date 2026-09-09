@@ -428,11 +428,6 @@ async def handle_successful_topup_with_cart(user_id: int, amount_kopeks: int, bo
 
             keyboard = types.InlineKeyboardMarkup(
                 inline_keyboard=[
-                    [
-                        types.InlineKeyboardButton(
-                            text='🛒 Вернуться к оформлению подписки', callback_data='return_to_saved_cart'
-                        )
-                    ],
                     [types.InlineKeyboardButton(text='💰 Мой баланс', callback_data='menu_balance')],
                     [types.InlineKeyboardButton(text='🏠 Главное меню', callback_data='back_to_menu')],
                 ]
@@ -465,49 +460,13 @@ async def handle_successful_topup_with_cart(user_id: int, amount_kopeks: int, bo
 async def request_support_topup(callback: types.CallbackQuery, db_user: User):
     texts = get_texts(db_user.language)
 
-    if not settings.is_support_topup_enabled():
-        await callback.answer(
-            texts.t(
-                'SUPPORT_TOPUP_DISABLED',
-                'Пополнение через поддержку отключено. Попробуйте другой способ оплаты.',
-            ),
-            show_alert=True,
-        )
-        return
-
-    user_id_display = db_user.telegram_id or db_user.email or f'#{db_user.id}'
-    support_text = f"""
-🛠️ <b>Пополнение через поддержку</b>
-
-Для пополнения баланса обратитесь в техподдержку:
-{settings.get_support_contact_display_html()}
-
-Укажите:
-• ID: {user_id_display}
-• Сумму пополнения
-• Способ оплаты
-
-⏰ Время обработки: 1-24 часа
-
-<b>Доступные способы:</b>
-• Криптовалюта
-• Переводы между банками
-• Другие платежные системы
-"""
-
-    keyboard = types.InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                types.InlineKeyboardButton(
-                    text='💬 Написать в поддержку', url=settings.get_support_contact_url() or 'https://t.me/'
-                )
-            ],
-            [types.InlineKeyboardButton(text=texts.BACK, callback_data='balance_topup')],
-        ]
+    await callback.answer(
+        texts.t(
+            'SUPPORT_TOPUP_DISABLED',
+            'Пополнение через поддержку отключено. Попробуйте другой способ оплаты.',
+        ),
+        show_alert=True,
     )
-
-    await callback.message.edit_text(support_text, reply_markup=keyboard, parse_mode='HTML')
-    await callback.answer()
 
 
 @error_handler

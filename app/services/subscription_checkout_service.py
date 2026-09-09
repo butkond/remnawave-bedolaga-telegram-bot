@@ -1,7 +1,5 @@
 import structlog
-from sqlalchemy.exc import MissingGreenlet
 
-from app.database.models import Subscription, User
 from app.utils.cache import UserCache
 
 
@@ -36,39 +34,11 @@ async def has_subscription_checkout_draft(user_id: int) -> bool:
 
 
 def should_offer_checkout_resume(
-    user: User,
+    user,
     has_draft: bool,
     *,
-    subscription: Subscription | None = None,
+    subscription=None,
 ) -> bool:
-    """
-    Determine whether checkout resume button should be available for the user.
-
-    Only users without an active paid subscription or users currently on trial
-    are eligible to continue assembling the subscription from the saved draft.
-    """
-
-    if not has_draft:
-        return False
-
-    if subscription is None:
-        try:
-            subscription = getattr(user, 'subscription', None)
-        except MissingGreenlet as error:
-            logger.warning(
-                'Не удалось лениво загрузить подписку пользователя при проверке возврата к checkout',
-                getattr=getattr(user, 'id', None),
-                error=error,
-            )
-            subscription = None
-
-    if subscription is None:
-        return True
-
-    if getattr(subscription, 'is_trial', False):
-        return True
-
-    if getattr(subscription, 'actual_status', None) == 'expired':
-        return True
+    """Checkout resume button is disabled for this customization."""
 
     return False

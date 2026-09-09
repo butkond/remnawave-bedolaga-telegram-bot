@@ -730,15 +730,6 @@ def get_main_menu_keyboard(
     if simple_purchase_button:
         paired_buttons.append(simple_purchase_button)
 
-    if show_resume_checkout or has_saved_cart:
-        resume_callback = 'return_to_saved_cart' if has_saved_cart else 'subscription_resume_checkout'
-        paired_buttons.append(
-            InlineKeyboardButton(
-                text=texts.RETURN_TO_SUBSCRIPTION_CHECKOUT,
-                callback_data=resume_callback,
-            )
-        )
-
     if custom_buttons:
         for button in custom_buttons:
             if isinstance(button, InlineKeyboardButton):
@@ -1056,8 +1047,6 @@ def get_insufficient_balance_keyboard(
     texts = get_texts(language)
     keyboard = get_payment_methods_keyboard(amount_kopeks or 0, language)
 
-    back_row_index: int | None = None
-
     if keyboard.inline_keyboard:
         last_row = keyboard.inline_keyboard[-1]
         if (
@@ -1069,27 +1058,6 @@ def get_insufficient_balance_keyboard(
                 text=texts.t('PAYMENT_RETURN_HOME_BUTTON', '🏠 На главную'),
                 callback_data='back_to_menu',
             )
-            back_row_index = len(keyboard.inline_keyboard) - 1
-
-    # Если есть сохраненная корзина, добавляем кнопку возврата к оформлению
-    if has_saved_cart:
-        return_row = [
-            InlineKeyboardButton(
-                text=texts.RETURN_TO_SUBSCRIPTION_CHECKOUT,
-                callback_data='return_to_saved_cart',
-            )
-        ]
-        insert_index = back_row_index if back_row_index is not None else len(keyboard.inline_keyboard)
-        keyboard.inline_keyboard.insert(insert_index, return_row)
-    elif resume_callback:
-        return_row = [
-            InlineKeyboardButton(
-                text=texts.RETURN_TO_SUBSCRIPTION_CHECKOUT,
-                callback_data=resume_callback,
-            )
-        ]
-        insert_index = back_row_index if back_row_index is not None else len(keyboard.inline_keyboard)
-        keyboard.inline_keyboard.insert(insert_index, return_row)
 
     return keyboard
 
@@ -1283,20 +1251,11 @@ def get_payment_methods_keyboard_with_cart(
     language: str = 'ru',
     amount_kopeks: int = 0,
 ) -> InlineKeyboardMarkup:
-    texts = get_texts(language)
     keyboard = get_payment_methods_keyboard(amount_kopeks, language)
 
     # Добавляем кнопку "Очистить корзину"
     keyboard.inline_keyboard.append(
         [InlineKeyboardButton(text='🗑️ Очистить корзину и вернуться', callback_data='clear_saved_cart')]
-    )
-
-    # Добавляем кнопку возврата к оформлению подписки
-    keyboard.inline_keyboard.insert(
-        -1,
-        [  # Вставляем перед кнопкой "назад"
-            InlineKeyboardButton(text=texts.RETURN_TO_SUBSCRIPTION_CHECKOUT, callback_data='return_to_saved_cart')
-        ],
     )
 
     return keyboard
@@ -1615,7 +1574,6 @@ def _apply_payment_name_overrides(keyboard: list[list[InlineKeyboardButton]]) ->
 def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LANGUAGE) -> InlineKeyboardMarkup:
     texts = get_texts(language)
     keyboard = []
-    has_direct_payment_methods = False
 
     amount_kopeks = max(0, int(amount_kopeks or 0))
 
@@ -1632,7 +1590,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_yookassa_enabled():
         if settings.YOOKASSA_SBP_ENABLED:
@@ -1644,7 +1601,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                     )
                 ]
             )
-            has_direct_payment_methods = True
 
         keyboard.append(
             [
@@ -1654,7 +1610,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.TRIBUTE_ENABLED:
         keyboard.append(
@@ -1665,7 +1620,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_mulenpay_enabled():
         mulenpay_name = settings.get_mulenpay_display_name()
@@ -1680,18 +1634,16 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_wata_enabled():
         keyboard.append(
             [
                 InlineKeyboardButton(
-                    text=texts.t('PAYMENT_CARD_WATA', '💳 Банковская карта (WATA)'),
+                    text=texts.t('PAYMENT_CARD_WATA', '💳 По СБП (WATA)'),
                     callback_data=_build_callback('wata'),
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_pal24_enabled():
         keyboard.append(
@@ -1701,7 +1653,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_platega_enabled() and settings.get_platega_active_methods():
         platega_name = settings.get_platega_display_name()
@@ -1725,7 +1676,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                     )
                 ]
             )
-        has_direct_payment_methods = True
 
     if settings.is_cryptobot_enabled():
         keyboard.append(
@@ -1736,7 +1686,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_heleket_enabled():
         keyboard.append(
@@ -1747,7 +1696,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_cloudpayments_enabled():
         keyboard.append(
@@ -1758,7 +1706,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_freekassa_sbp_enabled():
         sbp_name = settings.get_freekassa_sbp_display_name()
@@ -1770,7 +1717,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_freekassa_card_enabled():
         card_name = settings.get_freekassa_card_display_name()
@@ -1782,7 +1728,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if (
         settings.is_freekassa_enabled()
@@ -1798,7 +1743,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_kassa_ai_sbp_enabled():
         sbp_name = settings.get_kassa_ai_sbp_display_name()
@@ -1810,7 +1754,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_kassa_ai_card_enabled():
         card_name = settings.get_kassa_ai_card_display_name()
@@ -1822,7 +1765,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_kassa_ai_sberpay_enabled():
         sberpay_name = settings.get_kassa_ai_sberpay_display_name()
@@ -1834,7 +1776,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if (
         settings.is_kassa_ai_enabled()
@@ -1850,7 +1791,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_riopay_enabled():
         riopay_name = settings.get_riopay_display_name()
@@ -1862,7 +1802,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_severpay_enabled():
         severpay_name = settings.get_severpay_display_name()
@@ -1874,7 +1813,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_paypear_enabled():
         paypear_name = settings.get_paypear_display_name()
@@ -1886,7 +1824,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_rollypay_enabled():
         rollypay_name = settings.get_rollypay_display_name()
@@ -1898,7 +1835,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_overpay_enabled():
         overpay_name = settings.get_overpay_display_name()
@@ -1910,7 +1846,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_aurapay_sbp_enabled():
         sbp_name = settings.get_aurapay_sbp_display_name()
@@ -1922,7 +1857,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_aurapay_card_enabled():
         card_name = settings.get_aurapay_card_display_name()
@@ -1934,7 +1868,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if (
         settings.is_aurapay_enabled()
@@ -1950,7 +1883,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_etoplatezhi_sbp_enabled():
         sbp_name = settings.get_etoplatezhi_sbp_display_name()
@@ -1962,7 +1894,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_etoplatezhi_card_enabled():
         card_name = settings.get_etoplatezhi_card_display_name()
@@ -1974,7 +1905,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if (
         settings.is_etoplatezhi_enabled()
@@ -1990,7 +1920,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_antilopay_sbp_enabled():
         sbp_name = settings.get_antilopay_sbp_display_name()
@@ -2002,7 +1931,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_antilopay_card_enabled():
         card_name = settings.get_antilopay_card_display_name()
@@ -2014,7 +1942,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_antilopay_sberpay_enabled():
         sberpay_name = settings.get_antilopay_sberpay_display_name()
@@ -2026,7 +1953,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if (
         settings.is_antilopay_enabled()
@@ -2043,7 +1969,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_jupiter_sbp_enabled():
         jupiter_sbp_name = settings.get_jupiter_sbp_display_name()
@@ -2055,7 +1980,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_jupiter_enabled() and not settings.is_jupiter_sbp_enabled():
         jupiter_name = settings.get_jupiter_display_name()
@@ -2067,7 +1991,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_donut_card_enabled():
         donut_card_name = settings.get_donut_card_display_name()
@@ -2079,7 +2002,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_donut_sbp_enabled():
         donut_sbp_name = settings.get_donut_sbp_display_name()
@@ -2091,7 +2013,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_donut_sbp_qr_enabled():
         donut_qr_name = settings.get_donut_sbp_qr_display_name()
@@ -2103,7 +2024,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if (
         settings.is_donut_enabled()
@@ -2120,7 +2040,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_lava_card_enabled():
         lava_card_name = settings.get_lava_card_display_name()
@@ -2132,7 +2051,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_lava_sbp_enabled():
         lava_sbp_name = settings.get_lava_sbp_display_name()
@@ -2144,7 +2062,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-        has_direct_payment_methods = True
 
     if settings.is_lava_enabled() and not settings.is_lava_card_enabled() and not settings.is_lava_sbp_enabled():
         lava_name = settings.get_lava_display_name()
@@ -2153,16 +2070,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 InlineKeyboardButton(
                     text=texts.t('PAYMENT_LAVA', f'🌋 {lava_name}'),
                     callback_data=_build_callback('lava'),
-                )
-            ]
-        )
-        has_direct_payment_methods = True
-
-    if settings.is_support_topup_enabled():
-        keyboard.append(
-            [
-                InlineKeyboardButton(
-                    text=texts.t('PAYMENT_VIA_SUPPORT', '🛠️ Через поддержку'), callback_data='topup_support'
                 )
             ]
         )
@@ -2176,17 +2083,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
                 )
             ]
         )
-    elif not has_direct_payment_methods and settings.is_support_topup_enabled():
-        keyboard.insert(
-            0,
-            [
-                InlineKeyboardButton(
-                    text=texts.t('PAYMENTS_TEMPORARILY_UNAVAILABLE', '⚠️ Способы оплаты временно недоступны'),
-                    callback_data='payment_methods_unavailable',
-                )
-            ],
-        )
-
     keyboard.append([InlineKeyboardButton(text=texts.BACK, callback_data='menu_balance')])
 
     _apply_payment_name_overrides(keyboard)

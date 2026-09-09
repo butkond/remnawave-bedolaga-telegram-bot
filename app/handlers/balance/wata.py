@@ -52,8 +52,8 @@ async def start_wata_payment(
     message_text = texts.t(
         'WATA_TOPUP_PROMPT',
         (
-            '💳 <b>Оплата через WATA</b>\n\n'
-            'Введите сумму пополнения. Минимальная сумма — {min_amount}, максимальная — {max_amount}.\n'
+            '💳 Оплата по СБП\n\n'
+            'Введите сумму пополнения или выберите из предложенных ниже. Минимальная сумма — {min_amount}₽. '
             'Оплата происходит через защищенную форму WATA.'
         ),
     ).format(
@@ -162,7 +162,7 @@ async def process_wata_payment_amount(
         inline_keyboard=[
             [
                 types.InlineKeyboardButton(
-                    text=texts.t('WATA_PAY_BUTTON', '💳 Оплатить через WATA'),
+                    text=texts.t('WATA_PAY_BUTTON', '💳 Оплатить'),
                     url=payment_url,
                 )
             ],
@@ -179,15 +179,16 @@ async def process_wata_payment_amount(
     message_template = texts.t(
         'WATA_PAYMENT_INSTRUCTIONS',
         (
-            '💳 <b>Оплата через WATA</b>\n\n'
+            '💳 Оплата по СБП (WATA)\n'
             '💰 Сумма: {amount}\n'
-            '🆔 ID платежа: {payment_id}\n\n'
-            '📱 <b>Инструкция:</b>\n'
-            "1. Нажмите кнопку 'Оплатить через WATA'\n"
-            '2. Следуйте подсказкам платежной системы\n'
-            '3. Подтвердите перевод\n'
-            '4. Средства зачислятся автоматически\n\n'
-            '❓ Если возникнут проблемы, обратитесь в {support}'
+            '🆔 ID платежа:\n'
+            '{payment_id}\n\n'
+            'Инструкция:\n'
+            "1. Нажмите кнопку 'Оплатить через WATA'.\n"
+            '2. Следуйте подсказкам платежной системы.\n'
+            '3. Подтвердите перевод.\n'
+            '4. Поступление может занять несколько минут. Средства зачислятся автоматически.\n\n'
+            '❓ Если возникнут проблемы, обратитесь к {support}'
         ),
     )
 

@@ -37,6 +37,25 @@ logger = structlog.get_logger(__name__)
 PURCHASE_TEMPORARILY_UNAVAILABLE_TEXT = 'Оформление скоро будет доступно, сейчас действует бесплатный период.'
 
 
+def _format_tariff_traffic_value(traffic_gb: int | None) -> str:
+    return "∞" if not traffic_gb else f"{traffic_gb} ГБ"
+
+
+def _format_tariff_traffic_compact(traffic_gb: int | None) -> str:
+    return "∞" if not traffic_gb else f"{traffic_gb} ГБ в день"
+
+
+def _format_tariff_devices_compact(device_limit: int | None) -> str:
+    devices = int(device_limit or 0)
+    if devices % 10 == 1 and devices % 100 != 11:
+        word = "устройство"
+    elif 2 <= devices % 10 <= 4 and not 12 <= devices % 100 <= 14:
+        word = "устройства"
+    else:
+        word = "устройств"
+    return f"{devices} {word}"
+
+
 async def _show_purchase_temporarily_unavailable(
     callback: types.CallbackQuery,
     language: str,
@@ -188,8 +207,8 @@ def format_tariffs_list_text(
 
     for tariff in tariffs:
         # Трафик компактно
-        traffic_gb = tariff.traffic_limit_gb
-        traffic = "∞" if traffic_gb == 0 else f"{traffic_gb} ГБ"
+        traffic = _format_tariff_traffic_compact(tariff.traffic_limit_gb)
+        devices = _format_tariff_devices_compact(tariff.device_limit)
 
         # Цена
         is_daily = getattr(tariff, "is_daily", False)
@@ -227,15 +246,11 @@ def format_tariffs_list_text(
                     f"от {format_price_kopeks(min_price, compact=True)}{discount_icon}"
                 )
 
-        # Компактный формат: Название — 250 ГБ / 10 📱 от 179₽🔥
+        # Компактный формат: Название — 250 ГБ в день / 10 устройств от 179₽🔥
         purchased_mark = " ✅" if tariff.id in purchased_tariff_ids else ""
         lines.append(
-            f"<b>{html.escape(tariff.name)}</b>{purchased_mark} — {traffic} / {tariff.device_limit} 📱 {price_text}"
+            f"<b>{html.escape(tariff.name)}</b>{purchased_mark} — {traffic} / {devices} {price_text}"
         )
-
-        # Описание тарифа если есть
-        if tariff.description:
-            lines.append(f"<i>{html.escape(tariff.description)}</i>")
 
         lines.append("")
 
@@ -419,17 +434,14 @@ def format_tariff_info_for_user(
     """Форматирует информацию о тарифе для пользователя."""
     get_texts(language)
 
-    traffic = format_traffic(tariff.traffic_limit_gb)
+    traffic = _format_tariff_traffic_value(tariff.traffic_limit_gb)
 
     text = f"""📦 <b>{html.escape(tariff.name)}</b>
 
 <b>Параметры:</b>
-• Трафик: {traffic}
-• Устройств: {tariff.device_limit}
+• Трафик в день: {traffic}
+• Устройства: {tariff.device_limit}
 """
-
-    if tariff.description:
-        text += f"\n📝 {html.escape(tariff.description)}\n"
 
     if discount_percent > 0:
         text += f"\n🎁 <b>Ваша скидка: {discount_percent}%</b>\n"
@@ -574,7 +586,7 @@ def get_custom_tariff_keyboard(
 
         # Текущее значение
         traffic_row.append(
-            InlineKeyboardButton(text=f"📊 {traffic_gb} ГБ", callback_data="noop")
+            InlineKeyboardButton(text=f"📊 {traffic_gb} ГБ в день", callback_data="noop")
         )
 
         # +1 / +10 / +100
@@ -713,10 +725,10 @@ async def format_custom_tariff_preview(
         text += f"   💰 {format_price_kopeks(period_price)}\n"
 
     if tariff.can_purchase_custom_traffic():
-        text += f"📊 Трафик: <b>{traffic_gb} ГБ</b> (от {tariff.min_traffic_gb} до {tariff.max_traffic_gb})\n"
+        text += f"📊 Трафик в день: <b>{traffic_gb} ГБ</b> (от {tariff.min_traffic_gb} до {tariff.max_traffic_gb})\n"
         text += f"   💰 +{format_price_kopeks(traffic_price)}\n"
     else:
-        text += f"📊 Трафик: {traffic_display}\n"
+        text += f"📊 Трафик в день: {traffic_display}\n"
 
     text += f"📱 Устройств: {tariff.device_limit}\n"
 
@@ -874,13 +886,13 @@ async def select_tariff(
         )
         discount_text = f"\n💎 Скидка: {daily_discount}%" if daily_discount > 0 else ""
         user_balance = db_user.balance_kopeks or 0
-        traffic = format_traffic(tariff.traffic_limit_gb)
+        traffic = _format_tariff_traffic_value(tariff.traffic_limit_gb)
 
         if user_balance >= daily_price:
             await callback.message.edit_text(
                 f"✅ <b>Подтверждение покупки</b>\n\n"
                 f"📦 Тариф: <b>{html.escape(tariff.name)}</b>\n"
-                f"📊 Трафик: {traffic}\n"
+                f"📊 Трафик в день: {traffic}\n"
                 f"📱 Устройств: {tariff.device_limit}\n"
                 f"🔄 Тип: <b>Суточный</b>\n\n"
                 f"💰 <b>Цена: {format_price_kopeks(daily_price)}/день</b>"
@@ -1424,7 +1436,7 @@ async def handle_custom_confirm(
         await callback.message.edit_text(
             f"🎉 <b>Подписка успешно оформлена!</b>\n\n"
             f"📦 Тариф: <b>{html.escape(tariff.name)}</b>\n"
-            f"📊 Трафик: {traffic_display}\n"
+            f"📊 Трафик в день: {traffic_display}\n"
             f"📱 Устройств: {tariff.device_limit}\n"
             f"📅 Период: {format_period(custom_days)}\n"
             f"💰 Списано: {format_price_kopeks(total_price)}\n\n"
@@ -1553,7 +1565,7 @@ async def select_tariff_period(
     # Проверяем баланс
     user_balance = db_user.balance_kopeks or 0
 
-    traffic = format_traffic(tariff.traffic_limit_gb)
+    traffic = _format_tariff_traffic_value(tariff.traffic_limit_gb)
 
     if user_balance >= final_price:
         # Показываем подтверждение
@@ -1564,7 +1576,7 @@ async def select_tariff_period(
         await callback.message.edit_text(
             f"✅ <b>Подтверждение покупки</b>\n\n"
             f"📦 Тариф: <b>{html.escape(tariff.name)}</b>\n"
-            f"📊 Трафик: {traffic}\n"
+            f"📊 Трафик в день: {traffic}\n"
             f"📱 Устройств: {tariff.device_limit}\n"
             f"📅 Период: {format_period(period)}\n"
             f"{discount_text}\n"
@@ -2074,12 +2086,12 @@ async def confirm_tariff_purchase(
 
     await state.clear()
 
-    traffic = format_traffic(tariff.traffic_limit_gb)
+    traffic = _format_tariff_traffic_value(tariff.traffic_limit_gb)
 
     await callback.message.edit_text(
         f"🎉 <b>Подписка успешно оформлена!</b>\n\n"
         f"📦 Тариф: <b>{html.escape(tariff.name)}</b>\n"
-        f"📊 Трафик: {traffic}\n"
+        f"📊 Трафик в день: {traffic}\n"
         f"📱 Устройств: {tariff.device_limit}\n"
         f"📅 Период: {format_period(period)}\n"
         f"💰 Списано: {format_price_kopeks(final_price)}\n\n"
@@ -2382,12 +2394,12 @@ async def confirm_daily_tariff_purchase(
 
     await state.clear()
 
-    traffic = format_traffic(tariff.traffic_limit_gb)
+    traffic = _format_tariff_traffic_value(tariff.traffic_limit_gb)
 
     await callback.message.edit_text(
         f"🎉 <b>Суточная подписка оформлена!</b>\n\n"
         f"📦 Тариф: <b>{html.escape(tariff.name)}</b>\n"
-        f"📊 Трафик: {traffic}\n"
+        f"📊 Трафик в день: {traffic}\n"
         f"📱 Устройств: {tariff.device_limit}\n"
         f"🔄 Тип: Суточный\n"
         f"💰 Списано: {format_price_kopeks(final_daily_price)}\n\n"
@@ -2654,7 +2666,7 @@ async def show_tariff_extend(
         await callback.answer()
         return
 
-    traffic = format_traffic(tariff.traffic_limit_gb)
+    traffic = _format_tariff_traffic_value(tariff.traffic_limit_gb)
 
     # Проверяем есть ли у пользователя скидки по периодам
     promo_group = (
@@ -2683,7 +2695,7 @@ async def show_tariff_extend(
     await callback.message.edit_text(
         f"🔄 <b>Продление подписки</b>{discount_hint}\n\n"
         f"📦 Тариф: <b>{html.escape(tariff.name)}</b>\n"
-        f"📊 Трафик: {traffic}\n"
+        f"📊 Трафик в день: {traffic}\n"
         f"📱 Устройств: {actual_device_limit}\n\n"
         "Выберите период продления:",
         reply_markup=get_tariff_extend_keyboard(
@@ -2753,7 +2765,7 @@ async def select_tariff_extend_period(
     # Проверяем баланс
     user_balance = db_user.balance_kopeks or 0
 
-    traffic = format_traffic(tariff.traffic_limit_gb)
+    traffic = _format_tariff_traffic_value(tariff.traffic_limit_gb)
 
     if user_balance >= final_price:
         discount_text = ""
@@ -2763,7 +2775,7 @@ async def select_tariff_extend_period(
         await callback.message.edit_text(
             f'✅ <b>Подтверждение продления</b>\n\n'
             f'📦 Тариф: <b>{html.escape(tariff.name)}</b>\n'
-            f'📊 Трафик: {traffic}\n'
+            f'📊 Трафик в день: {traffic}\n'
             f'📱 Устройств: {actual_device_limit}\n'
             f'📅 Период: {format_period(period)}\n'
             f'{discount_text}\n'
@@ -3017,12 +3029,12 @@ async def confirm_tariff_extend(
 
         await state.clear()
 
-        traffic = format_traffic(tariff.traffic_limit_gb)
+        traffic = _format_tariff_traffic_value(tariff.traffic_limit_gb)
 
         await callback.message.edit_text(
             f"🎉 <b>Подписка успешно продлена!</b>\n\n"
             f"📦 Тариф: <b>{html.escape(tariff.name)}</b>\n"
-            f"📊 Трафик: {traffic}\n"
+            f"📊 Трафик в день: {traffic}\n"
             f"📱 Устройств: {actual_device_limit}\n"
             f"📅 Добавлено: {format_period(period)}\n"
             f"💰 Списано: {format_price_kopeks(final_price)}",
@@ -3082,8 +3094,8 @@ def format_tariff_switch_list_text(
         if tariff.id == current_tariff_id:
             continue
 
-        traffic_gb = tariff.traffic_limit_gb
-        traffic = "∞" if traffic_gb == 0 else f"{traffic_gb} ГБ"
+        traffic = _format_tariff_traffic_compact(tariff.traffic_limit_gb)
+        devices = _format_tariff_devices_compact(tariff.device_limit)
 
         # Проверяем суточный ли тариф
         is_daily = getattr(tariff, "is_daily", False)
@@ -3121,11 +3133,8 @@ def format_tariff_switch_list_text(
                 )
 
         lines.append(
-            f"<b>{html.escape(tariff.name)}</b> — {traffic} / {tariff.device_limit} 📱 {price_text}"
+            f"<b>{html.escape(tariff.name)}</b> — {traffic} / {devices} {price_text}"
         )
-
-        if tariff.description:
-            lines.append(f"<i>{html.escape(tariff.description)}</i>")
 
         lines.append("")
 
@@ -3422,7 +3431,7 @@ async def select_tariff_switch(
                 await callback.answer('Понижение тарифа недоступно', show_alert=True)
                 return
 
-    traffic = format_traffic(tariff.traffic_limit_gb)
+    traffic = _format_tariff_traffic_value(tariff.traffic_limit_gb)
 
     # Проверяем, суточный ли это тариф
     is_daily = getattr(tariff, "is_daily", False)
@@ -3452,7 +3461,7 @@ async def select_tariff_switch(
             await callback.message.edit_text(
                 f"✅ <b>Подтверждение смены тарифа</b>\n\n"
                 f"📦 Новый тариф: <b>{html.escape(tariff.name)}</b>\n"
-                f"📊 Трафик: {traffic}\n"
+                f"📊 Трафик в день: {traffic}\n"
                 f"📱 Устройств: {tariff.device_limit}\n"
                 f"🔄 Тип: <b>Суточный</b>\n\n"
                 f"💰 <b>Цена: {format_price_kopeks(daily_price)}/день</b>"
@@ -3513,12 +3522,9 @@ async def select_tariff_switch(
         info_text = f"""📦 <b>{html.escape(tariff.name)}</b>
 
 <b>Параметры нового тарифа:</b>
-• Трафик: {traffic}
+• Трафик в день: {traffic}
 • Устройств: {tariff.device_limit}
 """
-
-        if tariff.description:
-            info_text += f"\n📝 {html.escape(tariff.description)}\n"
 
         info_text += "\n⚠️ Оплачивается полная стоимость тарифа.\nВыберите период:"
 
@@ -3576,7 +3582,7 @@ async def select_tariff_switch_period(
     # Проверяем баланс
     user_balance = db_user.balance_kopeks or 0
 
-    traffic = format_traffic(tariff.traffic_limit_gb)
+    traffic = _format_tariff_traffic_value(tariff.traffic_limit_gb)
 
     # Получаем текущий тариф для отображения
     current_tariff_name = "Неизвестно"
@@ -3602,7 +3608,7 @@ async def select_tariff_switch_period(
             f"✅ <b>Подтверждение переключения тарифа</b>\n\n"
             f"📌 Текущий тариф: <b>{current_tariff_name}</b>\n"
             f"📦 Новый тариф: <b>{html.escape(tariff.name)}</b>\n"
-            f"📊 Трафик: {traffic}\n"
+            f"📊 Трафик в день: {traffic}\n"
             f"📱 Устройств: {tariff.device_limit}\n"
             f"{time_info}\n"
             f"{discount_text}\n"
@@ -3863,7 +3869,7 @@ async def confirm_tariff_switch(
 
         await state.clear()
 
-        traffic = format_traffic(tariff.traffic_limit_gb)
+        traffic = _format_tariff_traffic_value(tariff.traffic_limit_gb)
 
         # При смене тарифа устанавливается оплаченный период
         time_info = f"📅 Период: {days_for_new_tariff} дней"
@@ -3871,7 +3877,7 @@ async def confirm_tariff_switch(
         await callback.message.edit_text(
             f"🎉 <b>Тариф успешно изменён!</b>\n\n"
             f"📦 Новый тариф: <b>{html.escape(tariff.name)}</b>\n"
-            f"📊 Трафик: {traffic}\n"
+            f"📊 Трафик в день: {traffic}\n"
             f"📱 Устройств: {tariff.device_limit}\n"
             f"💰 Списано: {format_price_kopeks(final_price)}\n"
             f"{time_info}\n\n"
@@ -4144,12 +4150,12 @@ async def confirm_daily_tariff_switch(
 
         await state.clear()
 
-        traffic = format_traffic(tariff.traffic_limit_gb)
+        traffic = _format_tariff_traffic_value(tariff.traffic_limit_gb)
 
         await callback.message.edit_text(
             f"🎉 <b>Тариф успешно изменён!</b>\n\n"
             f"📦 Новый тариф: <b>{html.escape(tariff.name)}</b>\n"
-            f"📊 Трафик: {traffic}\n"
+            f"📊 Трафик в день: {traffic}\n"
             f"📱 Устройств: {tariff.device_limit}\n"
             f"🔄 Тип: Суточный\n"
             f"💰 Списано: {format_price_kopeks(final_daily_price)}\n\n"
@@ -4290,8 +4296,8 @@ def format_instant_switch_list_text(
         if tariff.id == current_tariff.id:
             continue
 
-        traffic_gb = tariff.traffic_limit_gb
-        traffic = "∞" if traffic_gb == 0 else f"{traffic_gb} ГБ"
+        traffic = _format_tariff_traffic_compact(tariff.traffic_limit_gb)
+        devices = _format_tariff_devices_compact(tariff.device_limit)
 
         # Рассчитываем стоимость переключения
         cost, is_upgrade = _calculate_instant_switch_cost(
@@ -4304,11 +4310,8 @@ def format_instant_switch_list_text(
             cost_text = "⬇️ Бесплатно"
 
         lines.append(
-            f"<b>{html.escape(tariff.name)}</b> — {traffic} / {tariff.device_limit} 📱 {cost_text}"
+            f"<b>{html.escape(tariff.name)}</b> — {traffic} / {devices} {cost_text}"
         )
-
-        if tariff.description:
-            lines.append(f"<i>{html.escape(tariff.description)}</i>")
 
         lines.append("")
 
@@ -4571,8 +4574,8 @@ async def preview_instant_switch(
     # Проверяем баланс
     user_balance = db_user.balance_kopeks or 0
 
-    traffic = format_traffic(new_tariff.traffic_limit_gb)
-    current_traffic = format_traffic(current_tariff.traffic_limit_gb)
+    traffic = _format_tariff_traffic_value(new_tariff.traffic_limit_gb)
+    current_traffic = _format_tariff_traffic_value(current_tariff.traffic_limit_gb)
 
     texts = get_texts(db_user.language)
 
@@ -4604,10 +4607,10 @@ async def preview_instant_switch(
             await callback.message.edit_text(
                 f"🔄 <b>Переключение на суточный тариф</b>\n\n"
                 f"📌 Текущий: <b>{html.escape(current_tariff.name)}</b>\n"
-                f"   • Трафик: {current_traffic}\n"
+                f"   • Трафик в день: {current_traffic}\n"
                 f"   • Устройств: {current_tariff.device_limit}\n\n"
                 f"📦 Новый: <b>{html.escape(new_tariff.name)}</b>\n"
-                f"   • Трафик: {traffic}\n"
+                f"   • Трафик в день: {traffic}\n"
                 f"   • Устройств: {new_tariff.device_limit}\n"
                 f"   • Тип: 🔄 Суточный\n\n"
                 f"💰 <b>Цена: {format_price_kopeks(daily_price)}/день</b>"
@@ -4653,10 +4656,10 @@ async def preview_instant_switch(
             await callback.message.edit_text(
                 f"⬆️ <b>Повышение тарифа</b>\n\n"
                 f"📌 Текущий: <b>{html.escape(current_tariff.name)}</b>\n"
-                f"   • Трафик: {current_traffic}\n"
+                f"   • Трафик в день: {current_traffic}\n"
                 f"   • Устройств: {current_tariff.device_limit}\n\n"
                 f"📦 Новый: <b>{html.escape(new_tariff.name)}</b>\n"
-                f"   • Трафик: {traffic}\n"
+                f"   • Трафик в день: {traffic}\n"
                 f"   • Устройств: {new_tariff.device_limit}\n\n"
                 f"⏰ Осталось дней: <b>{remaining_days}</b>\n"
                 f"💰 <b>Доплата: {format_price_kopeks(upgrade_cost)}</b>\n\n"
@@ -4685,10 +4688,10 @@ async def preview_instant_switch(
         await callback.message.edit_text(
             f"⬇️ <b>Переключение тарифа</b>\n\n"
             f"📌 Текущий: <b>{html.escape(current_tariff.name)}</b>\n"
-            f"   • Трафик: {current_traffic}\n"
+            f"   • Трафик в день: {current_traffic}\n"
             f"   • Устройств: {current_tariff.device_limit}\n\n"
             f"📦 Новый: <b>{html.escape(new_tariff.name)}</b>\n"
-            f"   • Трафик: {traffic}\n"
+            f"   • Трафик в день: {traffic}\n"
             f"   • Устройств: {new_tariff.device_limit}\n\n"
             f"⏰ Осталось дней: <b>{remaining_days}</b>\n"
             f"💰 <b>Бесплатно</b> (понижение/равный тариф)",
@@ -5005,14 +5008,14 @@ async def confirm_instant_switch(
 
         await state.clear()
 
-        traffic = format_traffic(new_tariff.traffic_limit_gb)
+        traffic = _format_tariff_traffic_value(new_tariff.traffic_limit_gb)
 
         # Для суточного тарифа другое сообщение об успехе
         if is_new_daily:
             await callback.message.edit_text(
                 f"🎉 <b>Тариф успешно изменён!</b>\n\n"
                 f"📦 Новый тариф: <b>{html.escape(new_tariff.name)}</b>\n"
-                f"📊 Трафик: {traffic}\n"
+                f"📊 Трафик в день: {traffic}\n"
                 f"📱 Устройств: {new_tariff.device_limit}\n"
                 f"🔄 Тип: Суточный\n"
                 f"💰 Списано: {format_price_kopeks(daily_price)}\n\n"
@@ -5048,7 +5051,7 @@ async def confirm_instant_switch(
             await callback.message.edit_text(
                 f"🎉 <b>Тариф успешно изменён!</b>\n\n"
                 f"📦 Новый тариф: <b>{html.escape(new_tariff.name)}</b>\n"
-                f"📊 Трафик: {traffic}\n"
+                f"📊 Трафик в день: {traffic}\n"
                 f"📱 Устройств: {new_tariff.device_limit}\n"
                 f"⏰ Осталось дней: {remaining_days}\n"
                 f"{cost_text}",
@@ -5112,7 +5115,7 @@ async def return_to_saved_tariff_cart(
 
     total_price = cart_data.get("total_price", 0)
     user_balance = db_user.balance_kopeks or 0
-    traffic = format_traffic(tariff.traffic_limit_gb)
+    traffic = _format_tariff_traffic_value(tariff.traffic_limit_gb)
 
     # Проверяем баланс (при 100% скидке — пропускаем)
     if total_price > 0 and user_balance < total_price:
@@ -5187,7 +5190,7 @@ async def return_to_saved_tariff_cart(
         await callback.message.edit_text(
             f"✅ <b>Подтверждение покупки</b>\n\n"
             f"📦 Тариф: <b>{html.escape(tariff.name)}</b>\n"
-            f"📊 Трафик: {traffic}\n"
+            f"📊 Трафик в день: {traffic}\n"
             f"📱 Устройств: {tariff.device_limit}\n"
             f"🔄 Тип: Суточный\n"
             f"💰 <b>Стоимость в день: {format_price_kopeks(daily_price)}</b>\n\n"
@@ -5210,7 +5213,7 @@ async def return_to_saved_tariff_cart(
         await callback.message.edit_text(
             f"✅ <b>Подтверждение продления</b>\n\n"
             f"📦 Тариф: <b>{html.escape(tariff.name)}</b>\n"
-            f"📊 Трафик: {traffic}\n"
+            f"📊 Трафик в день: {traffic}\n"
             f"📱 Устройств: {tariff.device_limit}\n"
             f"📅 Период: {format_period(period)}\n"
             f"{discount_text}\n"
@@ -5245,7 +5248,7 @@ async def return_to_saved_tariff_cart(
         await callback.message.edit_text(
             f"✅ <b>Подтверждение покупки</b>\n\n"
             f"📦 Тариф: <b>{html.escape(tariff.name)}</b>\n"
-            f"📊 Трафик: {traffic}\n"
+            f"📊 Трафик в день: {traffic}\n"
             f"📱 Устройств: {tariff.device_limit}\n"
             f"📅 Период: {format_period(period)}\n"
             f"{discount_text}\n"

@@ -47,12 +47,6 @@ DEFAULT_MENU_CONFIG: dict[str, Any] = {
             'max_per_row': 1,
         },
         {
-            'id': 'resume_row',
-            'buttons': ['resume_checkout'],
-            'conditions': {'has_saved_cart': True},
-            'max_per_row': 1,
-        },
-        {
             'id': 'promo_referral_row',
             'buttons': ['promocode', 'referrals'],
             'conditions': None,
@@ -177,7 +171,7 @@ DEFAULT_MENU_CONFIG: dict[str, Any] = {
             'builtin_id': 'resume_checkout',
             'text': {'ru': '↩️ Вернуться к оформлению', 'en': '↩️ Resume checkout'},
             'action': 'return_to_saved_cart',
-            'enabled': True,
+            'enabled': False,
             'visibility': 'all',
             'conditions': None,
             'dynamic_text': False,
@@ -329,7 +323,7 @@ BUILTIN_BUTTONS_INFO: list[dict[str, Any]] = [
         'id': 'resume_checkout',
         'default_text': {'ru': '↩️ Вернуться к оформлению', 'en': '↩️ Resume checkout'},
         'callback_data': 'return_to_saved_cart',
-        'default_conditions': {'has_saved_cart': True},
+        'default_conditions': {'disabled': True},
         'supports_dynamic_text': False,
     },
     {

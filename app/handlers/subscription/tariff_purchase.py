@@ -930,8 +930,7 @@ async def select_tariff(
                 f"💰 Цена: {format_price_kopeks(daily_price)}/день"
                 f"{discount_text}\n\n"
                 f"💳 Ваш баланс: {format_price_kopeks(user_balance)}\n"
-                f"⚠️ Не хватает: <b>{format_price_kopeks(missing)}</b>\n\n"
-                f"🛒 <i>Корзина сохранена! После пополнения баланса подписка будет оформлена автоматически.</i>",
+                f"⚠️ Не хватает: <b>{format_price_kopeks(missing)}</b>",
                 reply_markup=get_daily_tariff_insufficient_balance_keyboard(
                     tariff_id, db_user.language
                 ),
@@ -1611,8 +1610,7 @@ async def select_tariff_period(
             f"📅 Период: {format_period(period)}\n"
             f"💰 Стоимость: {format_price_kopeks(final_price)}\n\n"
             f"💳 Ваш баланс: {format_price_kopeks(user_balance)}\n"
-            f"⚠️ Не хватает: <b>{format_price_kopeks(missing)}</b>\n\n"
-            f"🛒 <i>Корзина сохранена! После пополнения баланса подписка будет оформлена автоматически.</i>",
+            f"⚠️ Не хватает: <b>{format_price_kopeks(missing)}</b>",
             reply_markup=get_tariff_insufficient_balance_keyboard(
                 tariff_id, period, db_user.language
             ),
@@ -2795,8 +2793,7 @@ async def select_tariff_extend_period(
             f"📅 Период: {format_period(period)}\n"
             f"💰 К оплате: {format_price_kopeks(final_price)}\n\n"
             f"💳 Ваш баланс: {format_price_kopeks(user_balance)}\n"
-            f"⚠️ Не хватает: <b>{format_price_kopeks(missing)}</b>\n\n"
-            f"🛒 <i>Корзина сохранена! После пополнения баланса подписка будет продлена автоматически.</i>",
+            f"⚠️ Не хватает: <b>{format_price_kopeks(missing)}</b>",
             reply_markup=InlineKeyboardMarkup(
                 inline_keyboard=[
                     [

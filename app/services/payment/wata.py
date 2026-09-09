@@ -7,10 +7,12 @@ from datetime import UTC, datetime
 from importlib import import_module
 from typing import Any
 
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database.models import PaymentMethod, TransactionType
+from app.localization.texts import get_texts
 from app.services.wata_service import WataAPIError, WataService
 from app.utils.payment_logger import payment_logger as logger
 from app.utils.user_utils import format_referrer_info
@@ -576,14 +578,23 @@ class WataPaymentMixin:
 
         if getattr(self, 'bot', None) and user.telegram_id:
             try:
-                keyboard = await self.build_topup_success_keyboard(user)
+                texts = get_texts(user.language if user else settings.DEFAULT_LANGUAGE)
+                keyboard = InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [
+                            InlineKeyboardButton(
+                                text=texts.t('BACK_TO_MAIN_MENU_BUTTON', '🏠 Главное меню'),
+                                callback_data='back_to_menu',
+                            )
+                        ]
+                    ]
+                )
                 await self.bot.send_message(
                     user.telegram_id,
                     (
                         '✅ <b>Пополнение успешно!</b>\n\n'
                         f'💰 Сумма: {settings.format_price(payment.amount_kopeks)}\n'
-                        '🦊 Способ: WATA\n'
-                        f'🆔 Транзакция: {transaction.id}\n\n'
+                        '🦊 Способ: WATA\n\n'
                         'Баланс пополнен автоматически!'
                     ),
                     parse_mode='HTML',

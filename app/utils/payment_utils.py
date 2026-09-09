@@ -77,9 +77,9 @@ def get_available_payment_methods() -> list[dict[str, str]]:
         methods.append(
             {
                 'id': 'wata',
-                'name': 'По СБП (WATA)',
+                'name': 'По СБП (через WATA)',
                 'icon': '💳',
-                'description': 'защищенная форма WATA',
+                'description': '',
                 'callback': 'topup_wata',
             }
         )
@@ -469,7 +469,7 @@ def get_payment_methods_text(language: str) -> str:
             name = name.format(platega_name=platega_name_html)
             description = description.format(platega_name=platega_name)
 
-        text += f'{name} - {description}\n'
+        text += f'{name} - {description}\n' if description else f'{name}\n'
 
     text += '\n' + texts.t(
         'PAYMENT_METHODS_FOOTER',

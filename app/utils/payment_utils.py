@@ -433,6 +433,16 @@ def get_payment_methods_text(language: str) -> str:
 Выберите способ пополнения:""",
         )
 
+    if len(methods) == 1 and methods[0]['id'] == 'wata':
+        return (
+            texts.t(
+                'PAYMENT_METHODS_TITLE',
+                '💳 <b>Способы пополнения баланса</b>',
+            )
+            + '\n\n'
+            + '1. По СБП (через WATA)'
+        )
+
     text = (
         texts.t(
             'PAYMENT_METHODS_TITLE',

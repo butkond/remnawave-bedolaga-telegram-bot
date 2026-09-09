@@ -1642,7 +1642,7 @@ async def handle_simple_subscription_payment_method(
                 inline_keyboard=[
                     [
                         types.InlineKeyboardButton(
-                            text=texts.t('WATA_PAY_BUTTON', '💳 Оплатить через WATA'),
+                            text=texts.t('WATA_PAY_BUTTON', '💳 Оплатить'),
                             url=payment_url,
                         )
                     ],
@@ -1659,15 +1659,16 @@ async def handle_simple_subscription_payment_method(
             message_template = texts.t(
                 'WATA_PAYMENT_INSTRUCTIONS',
                 (
-                    '💳 <b>Оплата через WATA</b>\n\n'
+                    '💳 Оплата по СБП (WATA)\n'
                     '💰 Сумма: {amount}\n'
-                    '🆔 ID платежа: {payment_id}\n\n'
-                    '📱 <b>Инструкция:</b>\n'
-                    "1. Нажмите кнопку 'Оплатить через WATA'\n"
-                    '2. Следуйте подсказкам платежной системы\n'
-                    '3. Подтвердите перевод\n'
-                    '4. Средства зачислятся автоматически\n\n'
-                    '❓ Если возникнут проблемы, обратитесь в {support}'
+                    '🆔 ID платежа:\n'
+                    '{payment_id}\n\n'
+                    'Инструкция:\n'
+                    "1. Нажмите кнопку 'Оплатить через WATA'.\n"
+                    '2. Следуйте подсказкам платежной системы.\n'
+                    '3. Подтвердите перевод.\n'
+                    '4. Поступление может занять несколько минут. Средства зачислятся автоматически.\n\n'
+                    '❓ Если возникнут проблемы, обратитесь к {support}'
                 ),
             )
 

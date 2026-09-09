@@ -112,6 +112,7 @@ def _get_method_defaults() -> dict:
             'is_configured': settings.is_wata_enabled(),
             'default_min': settings.WATA_MIN_AMOUNT_KOPEKS,
             'default_max': settings.WATA_MAX_AMOUNT_KOPEKS,
+            'default_quick_amounts': [24900, 59900, 99900, 169900],
             'available_sub_options': None,
         },
         'freekassa': {

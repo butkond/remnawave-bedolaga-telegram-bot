@@ -881,6 +881,18 @@ class MenuLayoutService:
         return True
 
     @classmethod
+    def _is_disabled_checkout_resume_button(cls, button_id: str, button_config: dict[str, Any]) -> bool:
+        """The checkout resume button is disabled for this customization."""
+        disabled_ids = {'resume_checkout'}
+        disabled_actions = {'return_to_saved_cart', 'subscription_resume_checkout'}
+
+        return (
+            button_id in disabled_ids
+            or button_config.get('builtin_id') in disabled_ids
+            or button_config.get('action') in disabled_actions
+        )
+
+    @classmethod
     def _check_visibility(
         cls,
         visibility: str,
@@ -1130,6 +1142,9 @@ class MenuLayoutService:
                     continue
 
                 button_cfg = buttons_config[button_id]
+                if cls._is_disabled_checkout_resume_button(button_id, button_cfg):
+                    continue
+
                 if button_id == 'buy_subscription':
                     button_cfg = {
                         **button_cfg,
@@ -1191,6 +1206,9 @@ class MenuLayoutService:
                     continue
 
                 button_cfg = buttons_config[button_id]
+                if cls._is_disabled_checkout_resume_button(button_id, button_cfg):
+                    continue
+
                 if button_id == 'buy_subscription':
                     button_cfg = {
                         **button_cfg,

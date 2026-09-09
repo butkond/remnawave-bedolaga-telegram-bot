@@ -362,7 +362,9 @@ async def show_subscription_info(callback: types.CallbackQuery, db_user: User, d
                 tariff_info_lines = [
                     f'<b>📦 {html.escape(tariff.name)}</b>',
                     f'Тип: {tariff_type_str}',
-                    f'Трафик в день: {tariff.traffic_limit_gb} ГБ' if tariff.traffic_limit_gb > 0 else 'Трафик: ∞ Безлимит',
+                    f'Трафик в день: {tariff.traffic_limit_gb} ГБ'
+                    if tariff.traffic_limit_gb > 0
+                    else 'Трафик в день: ∞ Безлимит',
                     f'Устройства: {tariff.device_limit}',
                 ]
 
@@ -4011,7 +4013,9 @@ async def handle_trial_payment_method(callback: types.CallbackQuery, db_user: Us
             await callback.message.edit_text(
                 texts.t(
                     'PAID_TRIAL_WATA',
-                    '💳 <b>Оплата через WATA</b>\n\nНажмите кнопку ниже для перехода к оплате.\n\n💰 Сумма: {amount}',
+                    '💳 <b>Оплата по СБП (WATA)</b>\n\n'
+                    'Нажмите кнопку ниже для перехода к оплате.\n\n'
+                    '💰 Сумма: {amount}',
                 ).format(amount=settings.format_price(trial_price_kopeks)),
                 reply_markup=InlineKeyboardMarkup(
                     inline_keyboard=[

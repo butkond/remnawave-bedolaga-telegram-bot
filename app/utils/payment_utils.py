@@ -77,9 +77,9 @@ def get_available_payment_methods() -> list[dict[str, str]]:
         methods.append(
             {
                 'id': 'wata',
-                'name': 'Банковская карта',
+                'name': 'По СБП (WATA)',
                 'icon': '💳',
-                'description': 'через WATA',
+                'description': 'защищенная форма WATA',
                 'callback': 'topup_wata',
             }
         )
@@ -398,17 +398,6 @@ def get_available_payment_methods() -> list[dict[str, str]]:
                 'icon': '💳',
                 'description': f'через {antilopay_name}',
                 'callback': 'topup_antilopay',
-            }
-        )
-
-    if settings.is_support_topup_enabled():
-        methods.append(
-            {
-                'id': 'support',
-                'name': 'Через поддержку',
-                'icon': '🛠️',
-                'description': 'другие способы',
-                'callback': 'topup_support',
             }
         )
 

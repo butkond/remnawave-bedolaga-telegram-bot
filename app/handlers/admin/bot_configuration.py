@@ -1241,7 +1241,7 @@ def _build_settings_keyboard(
         ).format(mulenpay_name=settings.get_mulenpay_display_name())
         test_payment_buttons.append([_test_button(f'{label} · тест', 'mulenpay')])
     elif category_key == 'WATA':
-        label = texts.t('PAYMENT_CARD_WATA', '💳 Банковская карта (WATA)')
+        label = texts.t('PAYMENT_CARD_WATA', '💳 По СБП (WATA)')
         test_payment_buttons.append([_test_button(f'{label} · тест', 'wata')])
     elif category_key == 'PAL24':
         label = texts.t('PAYMENT_CARD_PAL24', '💳 Банковская карта (PayPalych)')

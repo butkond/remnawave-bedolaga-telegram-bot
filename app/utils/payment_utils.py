@@ -77,7 +77,7 @@ def get_available_payment_methods() -> list[dict[str, str]]:
         methods.append(
             {
                 'id': 'wata',
-                'name': 'По СБП (через WATA)',
+                'name': 'СБП — через WATA',
                 'icon': '💳',
                 'description': '',
                 'callback': 'topup_wata',
@@ -431,16 +431,6 @@ def get_payment_methods_text(language: str) -> str:
 Обратитесь в техподдержку для пополнения баланса.
 
 Выберите способ пополнения:""",
-        )
-
-    if len(methods) == 1 and methods[0]['id'] == 'wata':
-        return (
-            texts.t(
-                'PAYMENT_METHODS_TITLE',
-                '💳 <b>Способы пополнения баланса</b>',
-            )
-            + '\n\n'
-            + '1. По СБП (через WATA)'
         )
 
     text = (

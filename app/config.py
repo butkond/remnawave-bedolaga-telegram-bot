@@ -619,6 +619,9 @@ class Settings(BaseSettings):
     PLATEGA_SECRET: str | None = None
     PLATEGA_DISPLAY_NAME: str = 'Platega'
     PLATEGA_BASE_URL: str = 'https://app.platega.io'
+    # 'v1' — POST /transaction/process with paymentMethod and `redirect` in response.
+    # 'v2' — POST /v2/transaction/process with `url` in response, needed for some card cascades.
+    PLATEGA_API_VERSION: str = 'v1'
     PLATEGA_RETURN_URL: str | None = None
     PLATEGA_FAILED_URL: str | None = None
     PLATEGA_CURRENCY: str = 'RUB'

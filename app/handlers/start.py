@@ -1906,12 +1906,17 @@ async def complete_registration_from_callback(callback: types.CallbackQuery, sta
         await db.refresh(existing_user, ['subscriptions'])
         user = existing_user
 
-    if referrer_id and referrer_id != user.id:
+    user_id = user.id
+    if referrer_id and referrer_id != user_id:
         try:
-            await process_referral_registration(db, user.id, referrer_id, callback.bot)
-            logger.info('✅ Реферальная регистрация обработана для', user_id=user.id)
+            await process_referral_registration(db, user_id, referrer_id, callback.bot)
+            logger.info('✅ Реферальная регистрация обработана для', user_id=user_id)
         except Exception as e:
             logger.error('Ошибка при обработке реферальной регистрации', error=e)
+        try:
+            await db.refresh(user, ['subscriptions'])
+        except Exception as refresh_error:
+            logger.warning('Не удалось обновить пользователя после реферальной регистрации', error=refresh_error)
 
     campaign_message = await _apply_campaign_bonus_if_needed(db, user, data, texts, bot=callback.bot)
 
@@ -2235,12 +2240,17 @@ async def complete_registration(message: types.Message, state: FSMContext, db: A
         await db.refresh(existing_user, ['subscriptions'])
         user = existing_user
 
-    if referrer_id and referrer_id != user.id:
+    user_id = user.id
+    if referrer_id and referrer_id != user_id:
         try:
-            await process_referral_registration(db, user.id, referrer_id, message.bot)
-            logger.info('✅ Реферальная регистрация обработана для', user_id=user.id)
+            await process_referral_registration(db, user_id, referrer_id, message.bot)
+            logger.info('✅ Реферальная регистрация обработана для', user_id=user_id)
         except Exception as e:
             logger.error('Ошибка при обработке реферальной регистрации', error=e)
+        try:
+            await db.refresh(user, ['subscriptions'])
+        except Exception as refresh_error:
+            logger.warning('Не удалось обновить пользователя после реферальной регистрации', error=refresh_error)
 
     # Активируем промокод если был сохранен в state
     promocode_to_activate = data.get('promocode')
@@ -2775,12 +2785,20 @@ async def required_sub_channel_check(
                     logger.info('✅ CHANNEL CHECK: pending_start_payload удален из state после создания пользователя')
 
                     # Обрабатываем реферальную регистрацию
-                    if referrer_id and referrer_id != user.id:
+                    user_id = user.id
+                    if referrer_id and referrer_id != user_id:
                         try:
-                            await process_referral_registration(db, user.id, referrer_id, bot)
-                            logger.info('✅ CHANNEL CHECK: Реферальная регистрация обработана для', user_id=user.id)
+                            await process_referral_registration(db, user_id, referrer_id, bot)
+                            logger.info('✅ CHANNEL CHECK: Реферальная регистрация обработана для', user_id=user_id)
                         except Exception as e:
                             logger.error('Ошибка при обработке реферальной регистрации', error=e)
+                        try:
+                            await db.refresh(user, ['subscriptions'])
+                        except Exception as refresh_error:
+                            logger.warning(
+                                'CHANNEL CHECK: не удалось обновить пользователя после реферальной регистрации',
+                                error=refresh_error,
+                            )
 
                     # Применяем бонус рекламной кампании (record_campaign_registration)
                     campaign_message = await _apply_campaign_bonus_if_needed(db, user, state_data, texts, bot=bot)

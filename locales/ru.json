@@ -1246,7 +1246,7 @@
   "PAYMENT_SBP_YOOKASSA": "🏬 Оплатить по СБП (YooKassa)",
   "PAYMENT_TELEGRAM_STARS": "⭐ Telegram Stars",
   "PAYMENT_VIA_SUPPORT": "🛠️ Через поддержку",
-  "PLATEGA_TOPUP_PROMPT": "💳 <b>Оплата через Platega ({method_name})</b>\n\nВведите сумму для пополнения от {min_amount} до {max_amount}.\nОплата происходит через Platega.",
+  "PLATEGA_TOPUP_PROMPT": "💳 <b>Оплата через Platega ({method_name})</b>\n\nВведите сумму пополнения или выберите из предложенных ниже. Минимальная сумма — {min_amount}. Оплата происходит через защищенную форму Platega.",
   "PLATEGA_SELECT_PAYMENT_METHOD": "Выберите способ оплаты Platega:",
   "PLATEGA_TEMPORARILY_UNAVAILABLE": "❌ Оплата через Platega временно недоступна",
   "PLATEGA_METHODS_NOT_CONFIGURED": "⚠️ На стороне Platega нет доступных методов оплаты",

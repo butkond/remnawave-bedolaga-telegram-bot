@@ -870,9 +870,9 @@ class RemnaWaveWebhookService:
                 logger.warning('Failed to format message with kwargs', text_key=text_key, format_kwargs=format_kwargs)
                 return
 
-        # Append "Close" button to every webhook notification keyboard
-        close_text = texts.get('WEBHOOK_CLOSE_BUTTON', '✖️ Закрыть')
-        close_row = [InlineKeyboardButton(text=close_text, callback_data='webhook:close')]
+        # Append main menu button to every webhook notification keyboard.
+        close_text = texts.get('WEBHOOK_CLOSE_BUTTON', '🏠 Главное меню')
+        close_row = [InlineKeyboardButton(text=close_text, callback_data='back_to_menu')]
         if reply_markup:
             reply_markup = InlineKeyboardMarkup(
                 inline_keyboard=[*reply_markup.inline_keyboard, close_row],

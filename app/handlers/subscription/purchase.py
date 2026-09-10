@@ -1649,8 +1649,8 @@ async def handle_extend_subscription(
                     [types.InlineKeyboardButton(text=texts.MENU_BUY_SUBSCRIPTION, callback_data='menu_buy')],
                     [
                         types.InlineKeyboardButton(
-                            text=texts.t('WEBHOOK_CLOSE_BUTTON', '✖️ Закрыть'),
-                            callback_data='webhook:close',
+                            text=texts.t('WEBHOOK_CLOSE_BUTTON', '🏠 Главное меню'),
+                            callback_data='back_to_menu',
                         )
                     ],
                 ]
@@ -1675,8 +1675,8 @@ async def handle_extend_subscription(
                     [types.InlineKeyboardButton(text=texts.MENU_BUY_SUBSCRIPTION, callback_data='menu_buy')],
                     [
                         types.InlineKeyboardButton(
-                            text=texts.t('WEBHOOK_CLOSE_BUTTON', '✖️ Закрыть'),
-                            callback_data='webhook:close',
+                            text=texts.t('WEBHOOK_CLOSE_BUTTON', '🏠 Главное меню'),
+                            callback_data='back_to_menu',
                         )
                     ],
                 ]

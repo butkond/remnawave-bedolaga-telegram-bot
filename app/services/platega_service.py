@@ -19,8 +19,25 @@ logger = structlog.get_logger(__name__)
 class PlategaService:
     """Обертка над Platega API с базовой повторной отправкой запросов."""
 
+    _SUPPORTED_API_VERSIONS = ('v1', 'v2')
+
     def __init__(self) -> None:
-        self.base_url = (settings.PLATEGA_BASE_URL or 'https://app.platega.io').rstrip('/')
+        base_url = (settings.PLATEGA_BASE_URL or 'https://app.platega.io').rstrip('/')
+        forced_version: str | None = None
+        for candidate in self._SUPPORTED_API_VERSIONS:
+            suffix = f'/{candidate}'
+            if base_url.lower().endswith(suffix):
+                forced_version = candidate
+                base_url = base_url[: -len(suffix)].rstrip('/')
+                logger.info(
+                    'PLATEGA_BASE_URL contains API version suffix; using it as PLATEGA_API_VERSION',
+                    api_version=candidate,
+                    base_url=base_url,
+                )
+                break
+
+        self.base_url = base_url
+        self.api_version = forced_version or self._normalize_api_version(settings.PLATEGA_API_VERSION)
         self.merchant_id = settings.PLATEGA_MERCHANT_ID
         self.secret = settings.PLATEGA_SECRET
         self._timeout = aiohttp.ClientTimeout(total=30, connect=10, sock_read=25)
@@ -62,7 +79,8 @@ class PlategaService:
         if payload:
             body['payload'] = payload
 
-        return await self._request('POST', '/transaction/process', json_data=body)
+        endpoint = '/v2/transaction/process' if self.api_version == 'v2' else '/transaction/process'
+        return await self._request('POST', endpoint, json_data=body)
 
     async def get_transaction(self, transaction_id: str) -> dict[str, Any] | None:
         endpoint = f'/transaction/{transaction_id}'
@@ -191,6 +209,27 @@ class PlategaService:
                 return trimmed_bytes.decode('utf-8')
             except UnicodeDecodeError:
                 trimmed_bytes = trimmed_bytes[:-1]
+
+    @classmethod
+    def _normalize_api_version(cls, raw: str | None) -> str:
+        version = (raw or '').strip().lower()
+        if version in cls._SUPPORTED_API_VERSIONS:
+            return version
+        if version:
+            logger.warning(
+                'Unknown PLATEGA_API_VERSION, falling back to v1',
+                configured=raw,
+                supported=cls._SUPPORTED_API_VERSIONS,
+            )
+        return 'v1'
+
+    @staticmethod
+    def parse_redirect_url(response: dict[str, Any] | None) -> str | None:
+        """Return payment page URL from Platega v1/v2 response."""
+        if not response:
+            return None
+        redirect_url = response.get('redirect') or response.get('url')
+        return str(redirect_url) if redirect_url else None
 
     @staticmethod
     def parse_expires_at(expires_in: str | None) -> datetime | None:

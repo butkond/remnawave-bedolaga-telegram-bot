@@ -134,6 +134,38 @@ async def test_create_platega_payment_success(monkeypatch: pytest.MonkeyPatch) -
 
 
 @pytest.mark.anyio('asyncio')
+async def test_create_platega_payment_accepts_v2_url_field(monkeypatch: pytest.MonkeyPatch) -> None:
+    stub = StubPlategaService(response={'transactionId': 'trx-v2', 'url': 'https://platega.example/v2', 'status': 'PENDING'})
+    service = _make_service(stub)
+    db = DummySession()
+
+    async def fake_create_platega_payment(*_: Any, **__: Any) -> DummyLocalPayment:
+        return DummyLocalPayment(payment_id=778)
+
+    monkeypatch.setattr(
+        payment_service_module,
+        'create_platega_payment',
+        fake_create_platega_payment,
+        raising=False,
+    )
+    monkeypatch.setattr(settings, 'PLATEGA_MIN_AMOUNT_KOPEKS', 10_000, raising=False)
+    monkeypatch.setattr(settings, 'PLATEGA_MAX_AMOUNT_KOPEKS', 500_000, raising=False)
+    monkeypatch.setattr(settings, 'PLATEGA_CURRENCY', 'RUB', raising=False)
+
+    result = await service.create_platega_payment(
+        db=db,
+        user_id=42,
+        amount_kopeks=50_000,
+        description='Пополнение счёта',
+        language='ru',
+        payment_method_code=11,
+    )
+
+    assert result is not None
+    assert result['redirect_url'] == 'https://platega.example/v2'
+
+
+@pytest.mark.anyio('asyncio')
 async def test_create_platega_payment_respects_limits_and_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
     stub = StubPlategaService()
     service = _make_service(stub)

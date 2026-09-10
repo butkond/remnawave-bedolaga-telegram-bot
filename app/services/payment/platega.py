@@ -487,8 +487,7 @@ class PlategaPaymentMixin:
                     (
                         '✅ <b>Пополнение успешно!</b>\n\n'
                         f'💰 Сумма: {settings.format_price(payment.amount_kopeks)}\n'
-                        f'🦊 Способ: {method_title}\n'
-                        f'🆔 Транзакция: {transaction.id}\n\n'
+                        f'🦊 Способ: {method_title}\n\n'
                         'Баланс пополнен автоматически!'
                     ),
                     parse_mode='HTML',

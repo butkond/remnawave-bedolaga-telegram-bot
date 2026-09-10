@@ -469,7 +469,7 @@ def get_payment_methods_text(language: str) -> str:
             name = name.format(platega_name=platega_name_html)
             description = description.format(platega_name=platega_name)
 
-        text += f'{name} - {description}\n' if description else f'{name}\n'
+        text += f'{name} — {description}\n' if description else f'{name}\n'
 
     text += '\n' + texts.t(
         'PAYMENT_METHODS_FOOTER',

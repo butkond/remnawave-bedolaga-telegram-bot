@@ -451,7 +451,6 @@ async def show_subscription_info(callback: types.CallbackQuery, db_user: User, d
 📱 Информация о подписке
 🎭 Тип: {subscription_type}
 📈 Трафик в день: {traffic}
-🌍 Серверы: {servers}
 📱 Устройства: {devices_used} / {device_limit}""",
         )
     else:
@@ -466,7 +465,6 @@ async def show_subscription_info(callback: types.CallbackQuery, db_user: User, d
 📅 Действует до: {end_date}
 ⏰ Осталось: {time_left}
 📈 Трафик в день: {traffic}
-🌍 Серверы: {servers}
 📱 Устройства: {devices_used} / {device_limit}""",
         )
 

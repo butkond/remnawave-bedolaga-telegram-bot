@@ -105,6 +105,7 @@ def _get_method_defaults() -> dict:
             'is_configured': settings.is_platega_enabled(),
             'default_min': settings.PLATEGA_MIN_AMOUNT_KOPEKS,
             'default_max': settings.PLATEGA_MAX_AMOUNT_KOPEKS,
+            'default_quick_amounts': [24900, 59900, 99900, 169900],
             'available_sub_options': _get_platega_sub_options(),
         },
         'wata': {

@@ -1883,14 +1883,14 @@ class Settings(BaseSettings):
             # Округление: ≤50 коп вниз, >50 коп вверх
             if kopeks > 50:
                 rubles += 1
-            return f'{sign}{rubles} ₽'
+            return f'{sign}{rubles}₽'
 
         # Без округления - показываем точное значение
         if kopeks:
             value = f'{sign}{rubles}.{kopeks:02d}'.rstrip('0').rstrip('.')
-            return f'{value} ₽'
+            return f'{value}₽'
 
-        return f'{sign}{rubles} ₽'
+        return f'{sign}{rubles}₽'
 
     def get_reports_chat_id(self) -> str | None:
         if self.ADMIN_REPORTS_CHAT_ID:

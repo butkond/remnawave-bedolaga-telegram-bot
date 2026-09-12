@@ -182,7 +182,7 @@ async def _build_notification_preview_message(language: str, notification_type: 
                 [
                     InlineKeyboardButton(
                         text=texts.t('SUBSCRIPTION_EXTEND', '💎 Продлить подписку'),
-                        callback_data='subscription_extend',
+                        callback_data='menu_buy',
                     )
                 ],
                 [
@@ -227,7 +227,7 @@ async def _build_notification_preview_message(language: str, notification_type: 
                 [
                     InlineKeyboardButton(
                         text=texts.t('SUBSCRIPTION_EXTEND', '💎 Продлить подписку'),
-                        callback_data='subscription_extend',
+                        callback_data='menu_buy',
                     )
                 ],
                 [
@@ -273,7 +273,7 @@ async def _build_notification_preview_message(language: str, notification_type: 
                 [
                     InlineKeyboardButton(
                         text=texts.t('SUBSCRIPTION_EXTEND', '💎 Продлить подписку'),
-                        callback_data='subscription_extend',
+                        callback_data='menu_buy',
                     )
                 ],
                 [

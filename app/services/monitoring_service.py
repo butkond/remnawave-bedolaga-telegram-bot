@@ -1746,11 +1746,11 @@ class MonitoringService:
 🔧 Доступ к серверам заблокирован до продления.
 """
 
-            from aiogram.types import InlineKeyboardMarkup
+            from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
             keyboard = InlineKeyboardMarkup(
                 inline_keyboard=[
-                    [build_miniapp_or_callback_button(text='💎 Продлить подписку', callback_data='menu_buy')],
+                    [InlineKeyboardButton(text='💎 Продлить подписку', callback_data='menu_buy')],
                     [build_miniapp_or_callback_button(text='💳 Пополнить баланс', callback_data='balance_topup')],
                 ]
             )
@@ -1840,7 +1840,7 @@ class MonitoringService:
                 tariff_label=tariff_label,
             )
 
-            from aiogram.types import InlineKeyboardMarkup
+            from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
             sub_btn_text = texts.t(
                 'BTN_MY_SUBSCRIPTIONS' if settings.is_multi_tariff_enabled() else 'BTN_MY_SUBSCRIPTION',
@@ -1849,10 +1849,9 @@ class MonitoringService:
             keyboard = InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
-                        build_miniapp_or_callback_button(
+                        InlineKeyboardButton(
                             text=texts.t('BTN_RENEW_SUBSCRIPTION', '⏰ Продлить подписку'),
                             callback_data='menu_buy',
-                            cabinet_path='/subscription',
                         )
                     ],
                     [
@@ -1911,11 +1910,11 @@ class MonitoringService:
 ⚡️ Успейте оформить до окончания тестового периода!
 """
 
-            from aiogram.types import InlineKeyboardMarkup
+            from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
             keyboard = InlineKeyboardMarkup(
                 inline_keyboard=[
-                    [build_miniapp_or_callback_button(text='💎 Купить подписку', callback_data='menu_buy')],
+                    [InlineKeyboardButton(text='💎 Купить подписку', callback_data='menu_buy')],
                     [build_miniapp_or_callback_button(text='💰 Пополнить баланс', callback_data='balance_topup')],
                 ]
             )
@@ -2065,7 +2064,7 @@ class MonitoringService:
             keyboard = InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
-                        build_miniapp_or_callback_button(
+                        InlineKeyboardButton(
                             text=texts.t('SUBSCRIPTION_EXTEND', '💎 Продлить подписку'),
                             callback_data='menu_buy',
                         )
@@ -2165,7 +2164,7 @@ class MonitoringService:
                         )
                     ],
                     [
-                        build_miniapp_or_callback_button(
+                        InlineKeyboardButton(
                             text=texts.t('SUBSCRIPTION_EXTEND', '💎 Продлить подписку'),
                             callback_data='menu_buy',
                         )

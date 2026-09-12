@@ -779,12 +779,9 @@ class RemnaWaveWebhookService:
     def _get_renew_keyboard(self, user: User, subscription_id: int | None = None) -> InlineKeyboardMarkup:
         texts = get_texts(user.language)
         button_text = texts.get('WEBHOOK_RENEW_BUTTON', 'Renew subscription')
-        extend_callback = (
-            f'se:{subscription_id}' if settings.is_multi_tariff_enabled() and subscription_id else 'subscription_extend'
-        )
         return InlineKeyboardMarkup(
             inline_keyboard=[
-                [build_miniapp_or_callback_button(text=button_text, callback_data=extend_callback)],
+                [InlineKeyboardButton(text=button_text, callback_data='menu_buy')],
             ]
         )
 

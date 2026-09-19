@@ -784,7 +784,7 @@ async def show_tariffs_list(
 
     await callback.message.edit_text(
         "📦 <b>Выберите тариф</b>\n\n"
-        "Пока действителен бесплатный период пользования Disco VPN. "
+        "Пока действителен бесплатный период пользования WGC VPN. "
         "Информация о тарифах появится позже.",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[

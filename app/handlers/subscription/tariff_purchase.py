@@ -847,6 +847,9 @@ async def select_tariff(
     state: FSMContext,
 ):
     """Обрабатывает выбор тарифа."""
+    await callback.answer('Будет доступно позже', show_alert=True)
+    return
+
     tariff_id = int(callback.data.split(":")[1])
     tariff = await get_tariff_by_id(db, tariff_id)
 

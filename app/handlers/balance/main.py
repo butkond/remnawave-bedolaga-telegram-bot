@@ -239,23 +239,16 @@ async def route_payment_by_method(
 
 @error_handler
 async def show_balance_menu(callback: types.CallbackQuery, db_user: User, db: AsyncSession):
-    # Проверяем, доступно ли сообщение
-    if isinstance(callback.message, InaccessibleMessage):
-        await callback.answer()
-        return
-
     balance_text, reply_markup = _build_balance_menu(db_user)
 
     try:
-        if callback.message and callback.message.text:
-            await callback.message.edit_text(balance_text, reply_markup=reply_markup)
-        elif callback.message and callback.message.caption:
-            await callback.message.edit_caption(balance_text, reply_markup=reply_markup)
-        else:
+        if callback.message and not isinstance(callback.message, InaccessibleMessage):
             await callback.message.answer(balance_text, reply_markup=reply_markup)
+        else:
+            await callback.bot.send_message(callback.from_user.id, balance_text, reply_markup=reply_markup)
     except TelegramBadRequest as error:
-        logger.warning('Failed to edit balance message, sending a new one instead', error=error)
-        await callback.message.answer(balance_text, reply_markup=reply_markup)
+        logger.warning('Failed to send balance menu', error=error)
+        await callback.bot.send_message(callback.from_user.id, balance_text, reply_markup=reply_markup)
     await callback.answer()
 
 

@@ -393,36 +393,27 @@ def _build_cabinet_main_menu_keyboard(
         *,
         style: str | None = None,
         icon_custom_emoji_id: str | None = None,
-        force_callback: bool = False,
     ) -> InlineKeyboardButton:
-        section = CALLBACK_TO_SECTION.get(callback_fallback)
-        section_cfg = cached_styles.get(section or '', {}) if section else {}
-
-        # 'default' in per-section config means "no color" — do not fall through.
-        if style:
-            resolved = _resolve_style(style)
-        elif section_cfg.get('style'):
-            resolved = _resolve_style(section_cfg['style'])
-        else:
-            resolved = global_style or _resolve_style(CALLBACK_TO_CABINET_STYLE.get(callback_fallback))
-        resolved_emoji = icon_custom_emoji_id or section_cfg.get('icon_custom_emoji_id') or None
-
-        # При наличии custom emoji стрипаем ведущий юникод-emoji из текста —
-        # иначе Telegram нарисует обе иконки.
-        from app.utils.miniapp_buttons import strip_leading_emoji
-
-        final_text = strip_leading_emoji(text) if resolved_emoji else text
-
-        if force_callback:
-            return InlineKeyboardButton(
-                text=final_text,
-                callback_data=callback_fallback,
-                style=resolved,
-                icon_custom_emoji_id=resolved_emoji or None,
-            )
-
         url = build_cabinet_url(path)
         if url:
+            section = CALLBACK_TO_SECTION.get(callback_fallback)
+            section_cfg = cached_styles.get(section or '', {}) if section else {}
+
+            # 'default' in per-section config means "no color" — do not fall through.
+            if style:
+                resolved = _resolve_style(style)
+            elif section_cfg.get('style'):
+                resolved = _resolve_style(section_cfg['style'])
+            else:
+                resolved = global_style or _resolve_style(CALLBACK_TO_CABINET_STYLE.get(callback_fallback))
+            resolved_emoji = icon_custom_emoji_id or section_cfg.get('icon_custom_emoji_id') or None
+
+            # При наличии custom emoji стрипаем ведущий юникод-emoji из текста —
+            # иначе Telegram нарисует обе иконки.
+            from app.utils.miniapp_buttons import strip_leading_emoji
+
+            final_text = strip_leading_emoji(text) if resolved_emoji else text
+
             return InlineKeyboardButton(
                 text=final_text,
                 web_app=types.WebAppInfo(url=url),
@@ -505,7 +496,7 @@ def _build_cabinet_main_menu_keyboard(
                     if not section_cfg.get('enabled', True):
                         continue
                     balance_text = _get_balance_text(cached_styles, language, texts, balance_kopeks)
-                    row_buttons.append(_cabinet_button(balance_text, '/balance', 'menu_balance', force_callback=True))
+                    row_buttons.append(_cabinet_button(balance_text, '/balance', 'menu_balance'))
 
                 case 'referral':
                     if not settings.is_referral_program_enabled():

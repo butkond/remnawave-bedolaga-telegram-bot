@@ -959,7 +959,7 @@
   "BALANCE_BUTTON_DEFAULT": "💰 Баланс: {balance}",
   "BALANCE_BUTTON_ZERO": "💰 Баланс: 0 ₽",
   "BALANCE_HISTORY": "📊 История операций",
-  "BALANCE_INFO": "\n💰 <b>Баланс: {balance}</b>\n\nВыберите действие:\n",
+  "BALANCE_INFO": "\n💰 <b>Баланс: {balance}</b>\n\n📝 <b>Инструкция:</b>\n\nШаг 1. Пополните баланс бота.\nШаг 2. Зайдите в раздел «💲 Оформить подписку» из главного меню.\nШаг 3. Выберите нужный тариф и нажмите «Подтвердить покупку».",
   "BALANCE_SUPPORT_REQUEST": "🛠️ Запрос через поддержку",
   "BALANCE_TOPUP": "💳 Пополнить баланс",
   "AUTO_PURCHASE_SUBSCRIPTION_SUCCESS": "✅ Подписка на {period} автоматически оформлена после пополнения баланса.",

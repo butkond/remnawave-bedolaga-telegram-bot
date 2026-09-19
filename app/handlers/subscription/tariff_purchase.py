@@ -811,23 +811,23 @@ async def show_tariffs_list(
         tariffs, db_user, has_period_discounts, purchased_tariff_ids
     )
 
-    await callback.message.edit_text(
-        "📦 <b>Выберите тариф</b>\n\n"
-        "Пока действителен бесплатный период пользования WGC VPN. "
-        "Информация о тарифах появится позже.",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="🔜 Будет скоро", callback_data="tariff_coming_soon"
-                    )
-                ],
-                [InlineKeyboardButton(text=texts.BACK, callback_data="back_to_menu")],
-            ]
-        ),
-    )
-    await callback.answer()
-    return
+    # await callback.message.edit_text(
+    #     "📦 <b>Выберите тариф</b>\n\n"
+    #     "Пока действителен бесплатный период пользования WGC VPN. "
+    #     "Информация о тарифах появится позже.",
+    #     reply_markup=InlineKeyboardMarkup(
+    #         inline_keyboard=[
+    #             [
+    #                 InlineKeyboardButton(
+    #                     text="🔜 Будет скоро", callback_data="tariff_coming_soon"
+    #                 )
+    #             ],
+    #             [InlineKeyboardButton(text=texts.BACK, callback_data="back_to_menu")],
+    #         ]
+    #     ),
+    # )
+    # await callback.answer()
+    # return
 
     await callback.message.edit_text(
         tariffs_text,

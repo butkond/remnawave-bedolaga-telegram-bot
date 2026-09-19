@@ -1058,7 +1058,7 @@ class MenuLayoutService:
         if button_config.get('dynamic_text'):
             text = cls._format_dynamic_text(text, context, texts)
 
-        if effective_button_id == 'balance':
+        if effective_button_id == 'balance' or action == 'menu_balance':
             return InlineKeyboardButton(text=text, callback_data='menu_balance', icon_custom_emoji_id=custom_emoji_id)
 
         # Строим кнопку в зависимости от типа

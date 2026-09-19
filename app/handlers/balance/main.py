@@ -25,6 +25,15 @@ from app.utils.decorators import error_handler
 logger = structlog.get_logger(__name__)
 
 TRANSACTIONS_PER_PAGE = 10
+BALANCE_MENU_TEXTS = frozenset(
+    {
+        get_texts('ru').MENU_BALANCE,
+        get_texts('en').MENU_BALANCE,
+        get_texts('ua').MENU_BALANCE,
+        get_texts('fa').MENU_BALANCE,
+        get_texts('zh').MENU_BALANCE,
+    }
+)
 
 CREDIT_TRANSACTION_TYPES: frozenset[str] = frozenset(
     {
@@ -34,6 +43,12 @@ CREDIT_TRANSACTION_TYPES: frozenset[str] = frozenset(
         TransactionType.POLL_REWARD.value,
     }
 )
+
+
+def _build_balance_menu(db_user: User) -> tuple[str, types.InlineKeyboardMarkup]:
+    texts = get_texts(db_user.language)
+    balance_text = texts.BALANCE_INFO.format(balance=texts.format_price(db_user.balance_kopeks))
+    return balance_text, get_balance_keyboard(db_user.language)
 
 
 async def route_payment_by_method(
@@ -229,11 +244,7 @@ async def show_balance_menu(callback: types.CallbackQuery, db_user: User, db: As
         await callback.answer()
         return
 
-    texts = get_texts(db_user.language)
-
-    balance_text = texts.BALANCE_INFO.format(balance=texts.format_price(db_user.balance_kopeks))
-
-    reply_markup = get_balance_keyboard(db_user.language)
+    balance_text, reply_markup = _build_balance_menu(db_user)
 
     try:
         if callback.message and callback.message.text:
@@ -246,6 +257,12 @@ async def show_balance_menu(callback: types.CallbackQuery, db_user: User, db: As
         logger.warning('Failed to edit balance message, sending a new one instead', error=error)
         await callback.message.answer(balance_text, reply_markup=reply_markup)
     await callback.answer()
+
+
+@error_handler
+async def show_balance_menu_from_reply(message: types.Message, db_user: User):
+    balance_text, reply_markup = _build_balance_menu(db_user)
+    await message.answer(balance_text, reply_markup=reply_markup)
 
 
 @error_handler
@@ -628,6 +645,7 @@ async def handle_topup_amount_callback(
 
 def register_balance_handlers(dp: Dispatcher):
     dp.callback_query.register(show_balance_menu, F.data == 'menu_balance')
+    dp.message.register(show_balance_menu_from_reply, F.text.in_(BALANCE_MENU_TEXTS))
 
     dp.callback_query.register(show_balance_history, F.data == 'balance_history')
 

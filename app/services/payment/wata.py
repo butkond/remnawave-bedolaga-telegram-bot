@@ -64,6 +64,10 @@ def _extract_transaction_id(payment: Any, remote_link: dict[str, Any] | None = N
     return None
 
 
+def _is_wata_not_found_error(error: WataAPIError) -> bool:
+    return 'status 404' in str(error).lower()
+
+
 class WataPaymentMixin:
     """Encapsulates creation and status handling for WATA payment links."""
 
@@ -302,7 +306,15 @@ class WataPaymentMixin:
             try:
                 remote_link = await self.wata_service.get_payment_link(payment.payment_link_id)  # type: ignore[union-attr]
             except WataAPIError as error:
-                logger.error('Ошибка получения WATA ссылки', payment_link_id=payment.payment_link_id, error=error)
+                if _is_wata_not_found_error(error):
+                    logger.warning(
+                        'WATA ссылка не найдена при проверке статуса',
+                        payment_link_id=payment.payment_link_id,
+                        order_id=payment.order_id,
+                        error=error,
+                    )
+                else:
+                    logger.error('Ошибка получения WATA ссылки', payment_link_id=payment.payment_link_id, error=error)
             except Exception as error:  # pragma: no cover - safety net
                 logger.exception('Непредвиденная ошибка при запросе WATA ссылки', error=error)
 
@@ -357,6 +369,23 @@ class WataPaymentMixin:
                         )
                     except Exception as error:  # pragma: no cover - safety net
                         logger.exception('Непредвиденная ошибка при поиске WATA транзакции', error=error)
+
+        if not transaction_payload and not payment.is_paid and getattr(self, 'wata_service', None) and payment.order_id:
+            try:
+                tx_response = await self.wata_service.search_transactions(  # type: ignore[union-attr]
+                    order_id=payment.order_id,
+                    status='Paid',
+                    limit=5,
+                )
+                items = tx_response.get('items') or []
+                for item in items:
+                    if (item or {}).get('status') == 'Paid':
+                        transaction_payload = item
+                        break
+            except WataAPIError as error:
+                logger.error('Ошибка поиска WATA транзакции по order_id', order_id=payment.order_id, error=error)
+            except Exception as error:  # pragma: no cover - safety net
+                logger.exception('Непредвиденная ошибка при поиске WATA транзакции по order_id', error=error)
 
         if not transaction_payload and not payment.is_paid and getattr(self, 'wata_service', None):
             fallback_transaction_id = transaction_id or _extract_transaction_id(payment)

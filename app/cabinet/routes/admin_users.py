@@ -2973,8 +2973,8 @@ async def get_user_sync_status(
                 panel_user = None
 
                 # Try by UUID first (works for all users including OAuth)
-                if sync_uuid:
-                    panel_user = await api.get_user_by_uuid(sync_uuid)
+                if effective_uuid:
+                    panel_user = await api.get_user_by_uuid(effective_uuid)
                 elif settings.is_multi_tariff_enabled():
                     from app.database.crud.subscription import get_active_subscriptions_by_user_id
 
